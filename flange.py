@@ -1,7 +1,8 @@
 
-import anyconfig, os, datetime, copy, fnmatch
-import iterutils, six
-import string
+import anyconfig, os, fnmatch, re, string, six
+
+import iterutils
+from registry import InstanceRegistry, LOG_REGISTRY
 
 
 PARSABLES = {
@@ -37,7 +38,8 @@ def search(data, match_string, exact=True, keys=True, values=False, path=None):
     else:
         search_func = lambda p,k,v: (keys == True and match_string in k) or (values == True and match_string in v)
 
-    return [x for x in iterutils.research(data, query=search_func, reraise=False) if path and path in x[0]]
+    # return [x for x in iterutils.research(data, query=search_func, reraise=False) if path and path in x[0]]
+    return iterutils.research(data, query=search_func, reraise=False)
 
 
 
@@ -62,17 +64,8 @@ def get(data, match_key, first=False, raise_absent=False, path=None):
 
 
 
-def research_models(data, model_specs):
-    models = ModelRegistry(data)
-    for name, spec in model_specs.iteritems():
-        models.register(name, spec, True, True)
-    return models
-
-
-
-
 def gather_data(
-        include_env=True,
+        include_os_env=True,
         expand_separator='__',
         base_dir=os.path.expanduser('~'),
         file_patterns=DEFAULT_FILE_PATTERNS):
@@ -80,7 +73,7 @@ def gather_data(
         sources = []
         if file_patterns:
             sources.extend(get_file_sources(base_dir, file_patterns))
-        if include_env:
+        if include_os_env:
             sources.append({'src':'os','ns':'_SHELL','dict':os.environ.copy(),'ac_parser':None})
 
         merged = {}
@@ -96,11 +89,44 @@ def gather_data(
 
 
 
+
+def get_os_env_source():
+    return {'src':'os','ns':'_SHELL','dict':os.environ.copy(),'ac_parser':None}
+
+
+def get_merged_source_data(init_data, sources, expand_separator):
+
+    # first merge to get a copy of initial data
+    merged = {}
+    anyconfig.merge(
+        merged,
+        init_data,
+        ac_merge=anyconfig.MS_DICTS_AND_LISTS)
+
+    # then merge in every source dict
+    for s in sources:
+        d = {s['ns']:s['dict']} if s['ns'] else s['dict']
+        anyconfig.merge(merged, d, ac_merge=anyconfig.MS_DICTS_AND_LISTS)
+
+    # finally separate any x__y__z keys into x: {y: {z: val}}}
+    # wrap the input dict to get the top level key expanded. Otherwise it's skipped by iterutils
+    if expand_separator:
+        merged = expand({'temp':merged}, expand_separator)['temp']
+        # merged = expand(merged, expand_separator)
+
+    return merged
+
+
+
+
 def __expand_value_dict(k,v,separator):
     if isinstance(v, dict):
         newvalue = v.copy()
         for dkey, dvalue in v.iteritems():
-            anyconfig.set_(newvalue, dkey.replace(separator, '.'), dvalue)
+            anyconfig.set_(
+                newvalue,
+                dkey.replace(separator, '.') if dkey else dkey,
+                dvalue)
         return k, newvalue
     return k, v
 
@@ -112,15 +138,18 @@ def expand(data, separator='.'):
 
 
 
-def get_file_source(f, ns_from_dirname=True):
+def get_file_source(filename, ns=None, ns_from_dirname=True):
 
-    ext = os.path.splitext(f)[1][1:]
+    full_file_path = os.path.realpath(os.path.expanduser(filename))
+
+    ext = os.path.splitext(full_file_path)[1][1:]
     if ext in DEFAULT_EXCLUDE_EXTENSIONS:
         return
 
-    s = {'src':f,
-        'ns':os.path.split(os.path.dirname(f))[-1].strip('.') if ns_from_dirname else '',
-        'dict': {}}
+    if not ns:
+        ns = os.path.split(os.path.dirname(full_file_path))[-1].strip('.') if ns_from_dirname else ''
+
+    s = {'src':full_file_path, 'ns':ns, 'dict': {}}
 
     try:
         s['dict'] = anyconfig.load(s['src'])
@@ -151,7 +180,8 @@ def get_file_source(f, ns_from_dirname=True):
 def get_file_sources(
         base_dir=os.path.expanduser('~'),
         patterns=DEFAULT_FILE_PATTERNS,
-        search_depth=1):
+        search_depth=1,
+        ns_from_dirname=True):
 
     sources = []
     for root, dirnames, filenames in os.walk(base_dir, topdown=True):
@@ -161,7 +191,8 @@ def get_file_sources(
         for p in patterns:
             for filename in fnmatch.filter(filenames, p):
                 # append the file source, using the dir as the namespace only
-                s = get_file_source(os.path.join(root, filename),depth>0)
+                # ns_from_dirname = ns_from_dirname and depth>0
+                s = get_file_source(os.path.join(root, filename), ns_from_dirname=ns_from_dirname)
                 if s and len(s['dict']):
                     # print '{} adding keys {}'.format(os.path.join(root, filename), s['dict'].keys())
                     sources.append(s)
@@ -170,164 +201,127 @@ def get_file_sources(
 
 
 
-import jsonschema
 
-def validate(d, spec):
-    try:
-        jsonschema.validate(d, spec)
-        return True
-    except:
-        return False
+import url_scheme_python as pyurl
 
 
+PLUGIN_SCHEMA = {
+    'type': 'object',
+    'properties': {
+        'type': {'constant': 'FLANGE.TYPE.PLUGIN'},
+        'schema': {
+            'oneOf': [
+                {'type':'string', 'pattern': pyurl.URL_PATTERN_STRING},
+                {'type': 'object'}]},
+        'factory': {'type':'string', 'pattern': pyurl.URL_PATTERN_STRING}
+    },
+    'required': ['type','schema','factory']}
 
 
-from flange_models import model_specs
+def create_registry_from_config(config):
 
+    if isinstance(config['schema'], six.string_types):
+        # parse schema as a url of a method that returns the schema
+        schema = pyurl.get(config['schema'])()
+    else:
+        # otherwise assume this is the schema itself as a dict
+        schema = config['schema']
 
-
-class Registry(object):
-    '''
-        Base class for model and object registries
-    '''
-    def get_registration(self, config_key, raise_absent=False):
-
-        if len(self.registrations) == 0 or (config_key and config_key not in self.registrations):
-            if raise_absent:
-                raise ValueError("no match found for config key {}".format(config_key))
-            else:
-                return
-
-        if config_key:
-            return self.registrations[config_key]
-        else:
-            if len(self.registrations) == 1:
-                return self.registrations.values()[0]
-            else:
-                raise ValueError("Multiple valid configurations exist. Config id/key must be specified")
-
-    def list(self):
-        return self.registrations.keys()
-
-
-    def get(self, config_key=None, raise_absent=False):
-        return self.get_registration(config_key, raise_absent)
-
-    def __str__(self):
-        return self.__repr__()
-
-    def __repr__(self):
-        return "<{} contents={}>".format(self.__class__.__name__ , self.registrations.keys())
+    return InstanceRegistry(
+        schema,
+        pyurl.get(config['factory']))
 
 
 
-class ModelRegistry(Registry):
-
-    def __init__(self, data=globals()):
-        self.data = data
-        self.registrations = {}
-
-    def register(self, name, model_spec, cache, mutable):
-        # print 'searching for valid %s configurations ' % name
-        object_map = {}
-        for result in iterutils.research(self.data, query=lambda p,k,v: validate(v, model_spec['config_model']), reraise=False):
-
-            # print 'found at %s' % str(result[0])
-            object_map[result[0][-1]] = {
-                'cached_obj': None,
-                'cached_since': None,
-                'config_source': 'unknown',
-                'config_path': 'unknown',
-                'config_data': result[1] if mutable else copy.deepcopy(result[1]), # this is the actual config object. intentionally mutable but beware
-                'create_func': lambda d: model_spec['create_func'](d)}
-
-        self.registrations[name] = InstanceRegistry(name, object_map, cache, mutable);
-        # self.__dict__.update(**{name:self.registrations[name]})
-
-
-
-
-# Construct a registry class that closes overs the creation function map
-class InstanceRegistry(Registry):
-
-    def __init__(self, id, object_map, cache, mutable):
-        self.id = id
-        self.registrations = object_map
-        self.cache = cache
-        self.mutable = mutable
-
-
-    def info(self, config_key):
-
-        reg =  self.get_registration(config_key)
-        if reg:
-            d =  dict(reg)
-            del d['create_func']
-            d['config_data'] = dict(d['config_data'])
-            d['cache'] = self.cache
-            return d
-
-
-    def update(self, config_key, **kargs):
-
-        if not self.mutable:
-            raise Exception('Registry configured as immutable')
-
-        reg = self.get_registration(config_key)
-        for key, value in kargs.iteritems():
-            # Just put in whatever is given. If its a new key it will be added
-            reg['config_data'][key] = value
-
-        return self.info(config_key)
-
-
-    def get(self, config_key=None):
-
-        reg = self.get_registration(config_key)
-        if reg:
-            if not self.cache:
-                return reg['create_func'](reg['config_data'])
-
-            if not reg['cached_obj']:
-                reg['cached_obj'] = reg['create_func'](reg['config_data'])
-                reg['cached_since']= datetime.datetime.now()
-
-            return reg['cached_obj']
-
-
+def from_file(filename, root_ns=None, file_ns_from_dirname=False):
+    path, basename = os.path.split(os.path.realpath(os.path.expanduser(filename)))
+    return Flange(root_ns=root_ns, file_ns_from_dirname=file_ns_from_dirname, include_os_env=False, base_dir=path, file_patterns=[basename])
 
 
 
 class Flange(object):
     
-    def __init__(self, data=None, model_specs=None):
+    def __init__(self, 
+                data=None,
+                root_ns='',
+                model_specs=None, 
+                base_dir=os.path.expanduser('~'), 
+                file_patterns=DEFAULT_FILE_PATTERNS,
+                file_search_depth=1,
+                file_ns_from_dirname=True,
+                include_os_env=True,
+                expand_separator='__'):
 
-        self.include_env=True,
-        self.expand_separator='__'
-        self.base_dir=os.path.expanduser('~')
-        self.file_patterns=DEFAULT_FILE_PATTERNS
-        
+        self.include_os_env=include_os_env,
+        self.expand_separator=expand_separator
+        self.base_dir=base_dir
+        self.file_patterns=file_patterns
+        self.file_search_depth=file_search_depth
+        self.file_ns_from_dirname=file_ns_from_dirname
+        self.include_os_env=include_os_env
+        self.root_ns=root_ns
+        self.init_data = {}
+        self.registries = {}
+
+
+
         if data:
-            self.data = data
+            self.init_data = data
             self.sources = [{'src':'python','ns':'','dict':data,'ac_parser':None}]
         else:
-            self.data, self.sources = gather_data(
-                self.include_env,
-                self.expand_separator,
-                self.base_dir,
-                self.file_patterns)
+            # self.data, self.sources = gather_data(
+            #     self.include_os_env,
+            #     self.expand_separator,
+            #     self.base_dir,
+            #     self.file_patterns)
 
-        if model_specs:
-            self.model_specs = model_specs
-        else:
-            import flange_models
-            self.model_specs = flange_models.model_specs
+            self.sources = []
+            if self.file_patterns:
+                self.sources.extend(get_file_sources(self.base_dir,self.file_patterns,self.file_search_depth,self.file_ns_from_dirname))
+            if self.include_os_env:
+                self.sources.append(get_os_env_source())
 
-        self.models = research_models(self.data, self.model_specs)
+
+        # make the root key equal to root_ns if set
+        # if self.root_ns and not self.root_ns in self.init_data or len(self.init_data.keys()) != 1:
+        #     d = {self.root_ns: self.init_data}
+        # else:
+        #     d = self.init_data
+
+        self.data = get_merged_source_data(self.init_data, self.sources, self.expand_separator)
+        if self.root_ns and (not self.root_ns in self.init_data or len(self.init_data.keys()) != 1):
+            temp = {}
+            # use anyonfig set to expand the root_ns key
+            anyconfig.set_(
+                temp,
+                self.root_ns.replace(self.expand_separator, '.'),
+                self.data)
+            self.data = temp
+
+
+        # Keep a special instance registry that registers models. Use it to discover configuration
+        # that defines other type of models with a schema and a factory. Th
+        self.models = InstanceRegistry(PLUGIN_SCHEMA, create_registry_from_config)
+        self.models.registerInstance('logger', LOG_REGISTRY)
+        self.models.research(self.data)
+
+        for modelname in self.models.list():
+            model = self.models.get(modelname)
+            model.research(self.data)
+
+
+        # For any model plugins found, research the data looking for instances
+        # for plugin_key in self.get_registration('model_plugins').list():
+        #     plugin = self.registrations.get(plugin_key)
+        #     self.register(plugin_key, plugin.schema, plugin.factory)
+
+
+
+
 
 
     def search(self, pattern, exact=True, keys=True, values=False, path=None):
-        search(self, self.data, pattern, exact, keys, values, path)
+        return search(self.data, pattern, exact, keys, values, path)
     
     
     def get(self, config_key, first=False, raise_absent=False, path=None):
@@ -352,13 +346,4 @@ class Flange(object):
     
             return l[0]
     
-
-
-# __OBJ__ = Flange()
-
-#
-# def globalize_models():
-#     for m in models():
-#         m.
-
 

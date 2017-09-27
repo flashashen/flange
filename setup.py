@@ -28,7 +28,7 @@ setup(
     platforms='osx,linux,mswindows',
     keywords = "configuration yaml object registry spring",
     long_description=README_TEXT,
-    py_modules=['flange'],
+    py_modules=['model_httpjson'],
     install_requires=[
         'anyconfig',
         'certifi',

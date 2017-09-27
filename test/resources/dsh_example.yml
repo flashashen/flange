@@ -1,0 +1,58 @@
+
+
+#
+# Commands
+#
+command_name: "echo 'deafult is a shell command'"
+
+command_name2:
+  type: command  # default is 'command'. other types are 'var' ..
+  desc: description or help text
+  do:
+   # a do item with periods indicates a dsh command ev
+    - shell: 'ls -l arg1 arg2'
+    - self: ans rcmd ls -l
+    - eval: print 'python executed directly. ** free code evaluation presents security risks'
+
+
+#
+# Vars - long form
+#
+var_name:
+  type: var
+  ns: sire6  # default is current namespace/path
+  env: prod
+  # directly set value. Alternative to source
+  value: set value directly. can be a dict also?
+  # get value from external source. Alternative to value
+  source:
+    # flange model key - refer to flange lib docs
+    mkey: some_flange_model_key
+    # or direct src spec..
+    url: https://hypothetical
+    jmes: 'some valid jmes path to resolve value from src'
+
+#
+# Vars - short form
+#
+vars:
+  default:
+    # ns=default, env=default/none, name='var_name', value='val_default'
+    var_name: val_default
+  prod:
+    # ns=default, env='prod', name='var_name', value='val_prod'
+    var_name: val_prod
+  dev:
+    # ns=default, env='dev', name='var_name', value='val_dev'
+    var_name: val_dev
+
+
+#
+# Platform services
+#
+contexts:
+  platform:
+    up: docker stack deploy -c platform/docker-compose.yml *platform_stack_name
+    stop: docker stack remove *platform_stack_name
+    build: docker-compose -f platform/docker-compose.yml build
+    ps: docker stack ps *platform_stack_name
