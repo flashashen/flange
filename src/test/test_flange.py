@@ -1,6 +1,28 @@
-import context
 
-import flange, logging
+import logging
+from .context import src
+import flange, url_scheme_python as pyurl
+
+# import flange, logging
+
+
+
+#
+#  url scheme
+#
+
+# from context import url_scheme_python as pyurl
+
+
+module_name = __name__.replace('.','/')
+def test_url():
+    module = pyurl.get('python://{}.test_url'.format(module_name))
+    module = pyurl.get('python://{}.TestPlugin'.format(module_name))
+    module = pyurl.get('python://{}.TestPlugin()'.format(module_name))
+    module = pyurl.get('python://{}.TestPlugin().get_schema__instance'.format(module_name))
+    module = pyurl.get('python://{}.TestPlugin.get_schema__static'.format(module_name))
+
+
 
 
 data = {
@@ -31,6 +53,11 @@ def test_model_research():
 
 
 class TestPlugin:
+
+    class Inner:
+        def m(self):
+            pass
+
     '''
         A class to test providing schema and factory with instance methods, as well
         a test the created object which is an instance of this class. so both the model
@@ -43,7 +70,8 @@ class TestPlugin:
     def get_value(self):
         return self.value
 
-    def get_schema(self):
+    @staticmethod
+    def get_schema__static():
         return {
             'type': 'object',
             'properties':{
@@ -51,6 +79,10 @@ class TestPlugin:
             },
             'required': ['only_TestPlugin_would_match_this']
         }
+
+    def get_schema__instance(self):
+        return TestPlugin.get_schema__instance()
+
 
     def get_instance(self, params):
         # return an instance of this object with the value given in params
@@ -69,13 +101,13 @@ def test_plugin_model():
 
         'test_plugin_config_key': {
             'type': 'FLANGE.TYPE.PLUGIN',
-            'schema': 'python://{}:TestPlugin.get_schema'.format(__name__),
-            'factory': 'python://{}:TestPlugin.get_instance'.format(__name__)
+            'schema': 'python://{}.TestPlugin.get_schema__static'.format(module_name),
+            'factory': 'python://{}.TestPlugin().get_instance'.format(module_name)
         }
     }
 
     f = flange.Flange(data=data, file_patterns=None)
-    assert f.mget('test_instance_key').__class__.__name__ == 'TestPlugin'
+    assert f.mget('test_instance_key').get_value() == 'some value'
 
 
 
