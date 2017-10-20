@@ -23,7 +23,7 @@ class Registry(object):
 
         if len(self.registrations) == 0 or (config_key and config_key not in self.registrations):
             if raise_absent:
-                raise ValueError("no match found for config key {}".format(config_key))
+                raise ValueError("nothing registered under '{}'".format(config_key))
             else:
                 return
 
@@ -60,6 +60,11 @@ class InstanceRegistry(Registry):
         self.cache = cache
         self.mutable = mutable
 
+
+    def validate(self, data):
+        return jsonschema.validate(data, self.schema)
+
+
     def research(self, data):
         """
             Traverse the data dict recursively to find anything matching the schema. For every match, create
@@ -90,13 +95,9 @@ class InstanceRegistry(Registry):
 
 
 
-    def info(self, config_key):
-        reg =  self.get_registration(config_key)
-        if reg:
-            d = dict(reg)
-            # d['params'] = dict(d['params'])
-            # d['cache'] = self.cache
-            return d
+    def info(self):
+        import pprint
+        return pprint.pformat({'registry': [name for name in self.registrations.keys()]})
 
 
 
@@ -106,17 +107,20 @@ class InstanceRegistry(Registry):
             raise Exception('Registry configured as immutable')
 
         reg = self.get_registration(config_key)
-        for key, value in kargs.iteritems():
+        for key, value in kargs.items():
             # Just put in whatever is given. If its a new key it will be added
             reg['params'][key] = value
 
         return self.info(config_key)
 
 
+    def list(self):
+        return self.registrations.keys()
 
-    def get(self, config_key=None):
 
-        reg = self.get_registration(config_key)
+    def get(self, config_key=None, raise_absent=False):
+
+        reg = self.get_registration(config_key, raise_absent)
         if reg:
 
             if reg['cached_obj']:

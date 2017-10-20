@@ -1,30 +1,60 @@
 
 import logging
-from .context import src
-import flange, url_scheme_python as pyurl
+from context import *
+# from flange import Flange, url_scheme_python as pyurl
 
-# import flange, logging
+pyurl = url_scheme_python
 
-
-
-#
-#  url scheme
+#.
+#   url scheme
 #
 
-# from context import url_scheme_python as pyurl
 
+
+def get_module_function_test_value():
+    return 'module function'
 
 module_name = __name__.replace('.','/')
-def test_url():
-    module = pyurl.get('python://{}.test_url'.format(module_name))
-    module = pyurl.get('python://{}.TestPlugin'.format(module_name))
-    module = pyurl.get('python://{}.TestPlugin()'.format(module_name))
-    module = pyurl.get('python://{}.TestPlugin().get_schema__instance'.format(module_name))
-    module = pyurl.get('python://{}.TestPlugin.get_schema__static'.format(module_name))
+
+
+def test_url_module_function():
+    attr = pyurl.get('python://{}.get_module_function_test_value'.format(module_name))
+    assert attr() == 'module function'
+
+    attr = pyurl.get('python://{}.get_module_function_test_value()'.format(module_name))
+    assert attr == 'module function'
+
+
+def test_url_class():
+    attr = pyurl.get('python://{}.TestPlugin'.format(module_name))
+    assert attr().get_schema__instance()
+
+    attr = pyurl.get('python://{}.TestPlugin()'.format(module_name))
+    assert attr.get_schema__instance()
+
+
+def test_url_class_functions():
+    attr = pyurl.get('python://{}.TestPlugin().get_schema__instance'.format(module_name))
+    assert attr()['type'] == 'object'
+    attr = pyurl.get('python://{}.TestPlugin().get_schema__instance()'.format(module_name))
+    assert attr['type'] == 'object'
+
+    attr = pyurl.get('python://{}.TestPlugin.get_schema__static'.format(module_name))
+    assert attr()['type'] == 'object'
+    attr = pyurl.get('python://{}.TestPlugin.get_schema__static()'.format(module_name))
+    assert attr['type'] == 'object'
 
 
 
+#
+#   InstanceRegistry
+#
 
+
+
+#
+#   flange api
+#
 data = {
     'a':{'a2':{'a3a':'a3aval', 'a3b':'a3aval'}},
     'testlog': {
@@ -34,6 +64,16 @@ data = {
 }
 
 f = flange.Flange(data=data)
+
+#
+#   registry = f.register(schema)
+#
+#   src_meta = f.source(url_or_file_path, validation_model)
+#
+#   f.validate(
+#
+
+
 
 
 def test_search_key_exact():
@@ -48,7 +88,6 @@ def test_search_key_exact():
 
 def test_model_research():
     assert type(f.mget('testlog')) == logging.Logger
-
 
 
 
@@ -81,7 +120,7 @@ class TestPlugin:
         }
 
     def get_schema__instance(self):
-        return TestPlugin.get_schema__instance()
+        return TestPlugin.get_schema__static()
 
 
     def get_instance(self, params):
@@ -116,14 +155,18 @@ def test_plugin_model():
 #
 
 
-def test_get_file_source():
-    fn = 'test/resources/dsh_example.yml'
-    s = flange.get_file_source(fn, ns='testns', ns_from_dirname=True)
-    assert fn in s['src']
-    assert s['dict']
-    assert s['ns'] == 'testns'
+# def test_get_file_source():
+#     fn = 'test/resources/dsh_example.yml'
+#     s = flange.Flange.(fn, ns='testns', ns_from_dirname=True)
+#     assert fn in s['src']
+#     assert s['dict']
+#     assert s['ns'] == 'testns'
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
+PATH_EXAMPLE = os.path.join(os.path.dirname(__file__), 'resources', 'dsh_example.yml')
+
+#
 def test_instantiate_from_explicit_file():
-    f = flange.from_file('test/resources/dsh_example.yml', root_ns='contexts__default')
+    f = flange.from_file(PATH_EXAMPLE, root_ns='contexts__default')
     assert f.search('vars')

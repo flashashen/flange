@@ -28,7 +28,8 @@ setup(
     platforms='osx,linux,mswindows',
     keywords = "configuration yaml object registry spring",
     long_description=README_TEXT,
-    py_modules=['model_httpjson'],
+    package_dir = {'': 'src'},
+    py_modules=['flange'],
     install_requires=[
         'anyconfig',
         'certifi',
@@ -37,8 +38,9 @@ setup(
         'PyYAML',
         'requests',
         'six',
-        'SQLAlchemy',
-        'urllib3'
+        # 'SQLAlchemy',
+        'urllib3',
+        'jsonschema'
     ],
 
     # entry_points='''
