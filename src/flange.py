@@ -1,8 +1,8 @@
 
 import anyconfig, os, fnmatch, string, six
-import iterutils
-from registry import InstanceRegistry, LOG_REGISTRY
-import url_scheme_python as pyurl
+from util import iterutils, registry, url_scheme_python as pyurl
+from util.registry import InstanceRegistry, LOG_REGISTRY
+
 
 
 PARSABLES = {
@@ -14,7 +14,7 @@ PARSABLES = {
     'properties':['props','properties'],
     'shellvars':['env']}
 
-DEFAULT_EXCLUDE_EXTENSIONS = ['tar','jar','zip','gz','swp']
+DEFAULT_EXCLUDE_PATTERNS = ['*.tar','*.jar','*.zip','*.gz','*.swp','node_modules','target','.idea']
 DEFAULT_FILE_PATTERNS = ['*.yml','*.cfg','*settings*','*config*','*properties*']
 VALID_KEY_CHARS = [c for c in string.printable if c not in ['_'] ]
 VALID_KEY_FUNC = lambda k: isinstance(k, six.string_types) and len(k)<50 and all(c in string.printable for c in VALID_KEY_CHARS)
@@ -97,17 +97,20 @@ def merge(dicts, unflatten_separator=None, strategy=anyconfig.MS_DICTS_AND_LISTS
     :param sources: list of dicts
     :param unflatten_separator: if provided will expand compound keys into nested dicts
     :param strategy: merge strategy
-    :return: composite dict
+    :return: composite dict, list of any dicts that failed to merge
     '''
 
     merged = {}
+    failed = []
     for d in dicts:
-        anyconfig.merge(merged, d, ac_merge=anyconfig.MS_DICTS_AND_LISTS)
+        try:
+             anyconfig.merge(merged, unflatten(d, unflatten_separator), ac_merge=anyconfig.MS_DICTS_AND_LISTS)
+        except:
+            print
+            failed.append(d)
 
-    if unflatten_separator:
-        merged = unflatten(merged, unflatten_separator)
 
-    return merged
+    return merged, failed
 
 
 
@@ -125,7 +128,8 @@ def unflatten(data, separator='.', replace=True):
     exist under the compound and expanded key
     :return: copy of input dict with expanded keys
     '''
-    
+    if not separator:
+        return data
     return iterutils.remap({'temp':data}, visit=lambda p, k, v: __expand_keys(k, v, separator, replace))['temp']
 
 
@@ -155,6 +159,7 @@ class Flange(object):
                 model_specs=None, 
                 base_dir='~',
                 file_patterns=DEFAULT_FILE_PATTERNS,
+                file_exclude_patterns=DEFAULT_EXCLUDE_PATTERNS,
                 file_search_depth=1,
                 file_ns_from_dirname=True,
                 include_os_env=True,
@@ -164,6 +169,7 @@ class Flange(object):
         self.unflatten_separator=unflatten_separator
         self.base_dir=os.path.expanduser(base_dir)
         self.file_patterns=file_patterns
+        self.file_exclude_patterns=file_exclude_patterns
         self.file_search_depth=file_search_depth
         self.file_ns_from_dirname=file_ns_from_dirname
         self.include_os_env=include_os_env
@@ -179,7 +185,12 @@ class Flange(object):
             self.sources = []
 
         if self.file_patterns:
-            self.sources.extend(Flange.__get_file_sources(self.base_dir,self.file_patterns,self.file_search_depth,self.file_ns_from_dirname))
+            self.sources.extend(Flange.__get_file_sources(
+                base_dir=self.base_dir,
+                include=self.file_patterns,
+                exclude=self.file_exclude_patterns,
+                search_depth=self.file_search_depth,
+                ns_from_dirname=self.file_ns_from_dirname))
         if self.include_os_env:
             self.sources.append({'src':'os','ns':'_SHELL','dict':os.environ.copy(),'ac_parser':None})
 
@@ -193,7 +204,7 @@ class Flange(object):
                 d = {root_ns: d}
             dicts.append(d)
 
-        self.data = merge(dicts, unflatten_separator)
+        self.data, self.failed = merge(dicts, unflatten_separator)
 
 
         # Keep a special instance registry that registers models. Use it to discover configuration
@@ -211,17 +222,16 @@ class Flange(object):
     def info(self):
         import pprint
 
-
         print('\nmodels:')
         for name, reg in self.models.registrations.items():
-            print(name.strip(), '\tinstances:', ','.join(reg['cached_obj'].list()))
+            print("{}\t\tinstances: {}".format(name.strip(), ','.join(reg['cached_obj'].list())))    # name.strip(), '\tinstances:', ','.join(reg['cached_obj'].list()))
 
-        if self.file_patterns:
-            print('\nbase dir: \t{}\nfile patterns: \t{}\nsearch depth: \t{}'.format(self.base_dir , self.file_patterns, self.file_search_depth))
+        print('\nbase dir: \t{}\nfile patterns: \t{}\nsearch depth: \t{}'.format(self.base_dir , self.file_patterns, self.file_search_depth))
 
         print('\nsources:')
         for src in self.sources:
-            print(src['ac_parser'],'\t',src['src'])
+            print("{}\t\t{}".format(src['ac_parser'],src['src']))
+
 
 
     def register(self, name, schema, factory=None, replace=False):
@@ -295,8 +305,8 @@ class Flange(object):
         full_file_path = os.path.realpath(os.path.expanduser(filename))
 
         ext = os.path.splitext(full_file_path)[1][1:]
-        if ext in DEFAULT_EXCLUDE_EXTENSIONS:
-            return
+        # if ext in DEFAULT_EXCLUDE_EXTENSIONS:
+        #     return
 
         if not ns:
             ns = os.path.split(os.path.dirname(full_file_path))[-1].strip('.') if ns_from_dirname else ''
@@ -335,7 +345,8 @@ class Flange(object):
     @staticmethod
     def __get_file_sources(
             base_dir=os.path.expanduser('~'),
-            patterns=DEFAULT_FILE_PATTERNS,
+            include=DEFAULT_FILE_PATTERNS,
+            exclude=DEFAULT_EXCLUDE_PATTERNS,
             search_depth=1,
             ns_from_dirname=True):
 
@@ -344,7 +355,15 @@ class Flange(object):
             depth = root.count(os.sep) - base_dir.count(os.sep)
             if  depth >= search_depth:
                 del dirnames[:]
-            for p in patterns:
+
+            # remove excluded directories and files
+            for e in exclude:
+                for d in [dirname for dirname in fnmatch.filter(dirnames, e)]:
+                    dirnames.remove(d)
+                for f in [filename for filename in fnmatch.filter(filenames, e)]:
+                    filenames.remove(f)
+
+            for p in include:
                 for filename in fnmatch.filter(filenames, p):
                     # append the file source, using the dir as the namespace only
                     # ns_from_dirname = ns_from_dirname and depth>0

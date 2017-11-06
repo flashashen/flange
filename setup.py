@@ -29,6 +29,7 @@ setup(
     keywords = "configuration yaml object registry spring",
     long_description=README_TEXT,
     package_dir = {'': 'src'},
+    packages=['util'],
     py_modules=['flange'],
     install_requires=[
         'anyconfig',
