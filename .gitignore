@@ -4,6 +4,10 @@
 
 .env
 *.egg-info
+.tox
+build
+dist
+.pypirc
 
 # Compiled source #
 ###################

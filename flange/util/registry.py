@@ -1,5 +1,6 @@
 
-import iterutils, copy, datetime
+import copy, datetime
+from . import iterutils
 
 
 

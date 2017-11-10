@@ -17,9 +17,9 @@ setup(
     classifiers= [
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.6',
         'Topic :: Software Development',
         'Environment :: Console',
-        'Operating System :: Windows',
         'Operating System :: MacOS',
         'Operating System :: POSIX :: Linux',
         'Development Status :: 3 - Alpha',
@@ -28,7 +28,7 @@ setup(
     platforms='osx,linux,mswindows',
     keywords = "configuration yaml object registry spring",
     long_description=README_TEXT,
-    package_dir = {'': 'src'},
+    package_dir = {'': 'flange'},
     packages=['util'],
     py_modules=['flange'],
     install_requires=[
@@ -43,9 +43,4 @@ setup(
         'urllib3',
         'jsonschema'
     ],
-
-    # entry_points='''
-    #     [console_scripts]
-    #     nyttth=no_you_talk_to_the_hand:cli
-    # ''',
 )

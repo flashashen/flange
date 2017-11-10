@@ -1,6 +1,6 @@
 
 import logging
-from context import *
+from .context import *
 # from flange import Flange, url_scheme_python as pyurl
 
 # pyurl = url_scheme_python
