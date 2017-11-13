@@ -104,7 +104,7 @@ def merge(dicts, unflatten_separator=None, strategy=anyconfig.MS_DICTS_AND_LISTS
     failed = []
     for d in dicts:
         try:
-             anyconfig.merge(merged, unflatten(d, unflatten_separator), ac_merge=anyconfig.MS_DICTS_AND_LISTS)
+            anyconfig.merge(merged, unflatten(d, unflatten_separator), ac_merge=anyconfig.MS_DICTS_AND_LISTS)
         except:
             print
             failed.append(d)
@@ -155,19 +155,20 @@ class Flange(object):
     
     def __init__(self, 
                 data=None,
+                include_os_env=True,
+                research_models=True,
+                model_specs=None,
                 root_ns='',
-                model_specs=None, 
                 base_dir='~',
                 file_patterns=DEFAULT_FILE_PATTERNS,
                 file_exclude_patterns=DEFAULT_EXCLUDE_PATTERNS,
                 file_search_depth=1,
                 file_ns_from_dirname=True,
-                include_os_env=True,
                 unflatten_separator='__'):
 
-        self.include_os_env=include_os_env,
+
         self.unflatten_separator=unflatten_separator
-        self.base_dir=os.path.expanduser(base_dir)
+        self.base_dir=base_dir
         self.file_patterns=file_patterns
         self.file_exclude_patterns=file_exclude_patterns
         self.file_search_depth=file_search_depth
@@ -178,34 +179,108 @@ class Flange(object):
 
 
 
+        # self.sources = []
+        #
+        # if self.file_patterns:
+        #     if isinstance(base_dir, six.string_types):
+        #         base_dir = [base_dir]
+        #     for dir in base_dir:
+        #         self.sources.extend(Flange.__get_file_sources(
+        #             base_dir=os.path.expanduser(dir),
+        #             include=self.file_patterns,
+        #             exclude=self.file_exclude_patterns,
+        #             search_depth=self.file_search_depth,
+        #             ns_from_dirname=self.file_ns_from_dirname))
+        #
+        #
+        # # merge the sources. The sources are added under the namespace if provided except for os and init data
+        # dicts = []
+        # for s in self.sources:
+        #     d = {s['ns']: s['dict']} if s['ns'] else s['dict']
+        #     if root_ns:
+        #         d = {root_ns: d}
+        #     dicts.append(d)
+
+        self.sources = []
+        dicts = []
+
+        if self.include_os_env:
+            d = os.environ.copy()
+            dicts.append(d)
+            self.sources.append({'src': 'os', 'ns': 'os', 'dict': d, 'ac_parser': None})
+
         if data:
             self.init_data = data
-            self.sources = [{'src':'python','ns':'','dict':data,'ac_parser':None}]
-        else:
-            self.sources = []
-
-        if self.file_patterns:
-            self.sources.extend(Flange.__get_file_sources(
-                base_dir=self.base_dir,
-                include=self.file_patterns,
-                exclude=self.file_exclude_patterns,
-                search_depth=self.file_search_depth,
-                ns_from_dirname=self.file_ns_from_dirname))
-        if self.include_os_env:
-            self.sources.append({'src':'os','ns':'_SHELL','dict':os.environ.copy(),'ac_parser':None})
+            dicts.append(data)
+            self.sources.append({'src': 'python', 'ns': '', 'dict': data, 'ac_parser': None})
 
 
-        # merge the init data and the sources. The sources are added under the namespace if provided
-        # but the init_data is taken as is
-        dicts = [self.init_data]
-        for s in self.sources:
+        self.data, self.failed = merge(dicts, unflatten_separator)
+
+        self.add_file_set(
+            root_ns=root_ns,
+            base_dir=base_dir,
+            file_patterns=file_patterns,
+            file_exclude_patterns=file_exclude_patterns,
+            file_search_depth=file_search_depth,
+            file_ns_from_dirname=file_ns_from_dirname,
+            unflatten_separator=unflatten_separator
+        )
+
+        if research_models:
+            self.research_models()
+
+        # # Keep a special instance registry that registers models. Use it to discover configuration
+        # # that defines other type of models with a schema and a factory. Th
+        # self.models = InstanceRegistry(PLUGIN_SCHEMA, Flange.__create_registry_from_config)
+        # self.models.registerInstance('logger', LOG_REGISTRY)
+        # self.models.research(self.data)
+        #
+        # for modelname in self.models.list():
+        #     model = self.models.get(modelname)
+        #     model.research(self.data)
+
+
+    def add_file_set(
+            self,
+            data=None,
+             root_ns='',
+             base_dir='~',
+             file_patterns=DEFAULT_FILE_PATTERNS,
+             file_exclude_patterns=DEFAULT_EXCLUDE_PATTERNS,
+             file_search_depth=1,
+             file_ns_from_dirname=True,
+             unflatten_separator='__'):
+
+        new_sources = []
+        if file_patterns:
+            if isinstance(base_dir, six.string_types):
+                base_dir = [base_dir]
+            for dir in base_dir:
+                new_sources.extend(Flange.__get_file_sources(
+                    base_dir=os.path.expanduser(dir),
+                    include=file_patterns,
+                    exclude=file_exclude_patterns,
+                    search_depth=file_search_depth,
+                    ns_from_dirname=file_ns_from_dirname))
+
+        dicts = []
+        for s in new_sources:
+            self.sources.append(s)
             d = {s['ns']: s['dict']} if s['ns'] else s['dict']
             if root_ns:
                 d = {root_ns: d}
             dicts.append(d)
 
-        self.data, self.failed = merge(dicts, unflatten_separator)
+        new_merged, new_failed = merge(dicts, unflatten_separator)
+        # print 'final merge of {} and {} '.format(type(new_merged), type(self.data))
+        self.data, ignore = merge(dicts=[self.data, new_merged], unflatten_separator=None)
+        # print 'self.data now {} '.format(type(self.data))
+        self.failed.extend(new_failed)
 
+
+
+    def research_models(self):
 
         # Keep a special instance registry that registers models. Use it to discover configuration
         # that defines other type of models with a schema and a factory. Th
@@ -216,6 +291,7 @@ class Flange(object):
         for modelname in self.models.list():
             model = self.models.get(modelname)
             model.research(self.data)
+
 
 
 
@@ -314,7 +390,7 @@ class Flange(object):
         s = {'src':full_file_path, 'ns':ns, 'dict': {}}
 
         try:
-            s['dict'] = anyconfig.load(s['src'])
+            s['dict'] = anyconfig.load(s['src'], ac_ordered=True)
             s['ac_parser'] = ext
 
         except Exception as e:
@@ -328,7 +404,7 @@ class Flange(object):
 
             for p in PARSABLES.keys():
                 try:
-                    d = anyconfig.load(s['src'], ac_parser=p)
+                    d = anyconfig.load(s['src'], ac_parser=p, ac_ordered=True)
 
                     filtered = iterutils.remap(d, lambda p,k,v: VALID_KEY_FUNC(k))
                     if len(filtered):

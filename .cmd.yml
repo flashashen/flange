@@ -1,11 +1,12 @@
 
 dsh: 2
+ns: flange
 
 init: 
   - pip install -U pip setuptools wheel twine keyring
 
 test:
-  - tox
+  - nosetests
 
 install:
   - pip install -e .

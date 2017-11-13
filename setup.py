@@ -8,7 +8,7 @@ readme.close()
 
 setup(
     name='flange',
-    version='0.0.2',
+    version='0.0.3',
     author='flashashen',
     author_email='flashashen@gmail.com',
     description='Autoload configuration from multiple sources. Autotranslate config into usable object',
