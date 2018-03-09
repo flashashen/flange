@@ -1213,3 +1213,65 @@ $ python -m timeit -s "x = [1]" "try: x.split('.')\n except: pass"
 $ python -m timeit -s "x = [1]" "try: x.split('.') \nexcept AttributeError: pass"
 1000000 loops, best of 3: 0.544 usec per loop
 """
+
+
+
+#
+#
+#  additional utils. not part of Mahmoud Hashemi's file
+#
+#
+
+def search(data, pattern, exact=True, keys=True, values=False, path=None):
+    '''
+
+    :param data:
+    :param pattern:
+    :param exact: search term must exactly match the key or value
+    :param keys: match against keys
+    :param values: match against values
+    :param path: search parameter relating to the nesting of dicts. match against given key hierarchy/sequence/path
+    :return: list of matches in the form ((path nesting sequence), value)
+    '''
+    if exact:
+        search_func = lambda p,k,v: (keys == True and pattern == k) or (values == True and pattern == v)
+    else:
+        search_func = lambda p,k,v: (keys == True and pattern in k) or (values == True and pattern in v)
+
+    # return [x for x in iterutils.research(data, query=search_func, reraise=False) if path and path in x[0]]
+    return research(data, query=search_func, reraise=False)
+
+
+
+def get(data, key, first=False, raise_absent=False, path=None, vfilter=None):
+    '''
+
+    :param data:
+    :param config_key:
+    :param first:
+    :param raise_absent:
+    :param path: see search method
+   :return: value at given key. None if no match found.
+    '''
+    matches = search(data, key, exact=True, values=False, path=path)
+    if matches:
+
+        if vfilter:
+            filtered = []
+            for match in matches:
+                add = all([search({'dont_care':match[1]}, term, exact=False, keys=False, values=True, path=None) for term in vfilter])
+                if add:
+                    filtered.append(match)
+
+        else:
+            filtered = matches
+
+        # print filtered
+        if not filtered:
+            if raise_absent:
+                raise ValueError('key not found: {}'.format(key))
+            return
+        elif len(filtered) > 1 and not first:
+            raise ValueError('multiple matches found: ' + str([m[0] for m in filtered]))
+        return filtered[0][1]
+

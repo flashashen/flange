@@ -1,6 +1,9 @@
 
 import logging
 from .context import *
+from nose.tools import *
+
+from flange import dbengine, url_scheme_python as pyurl
 # from flange import Flange, url_scheme_python as pyurl
 
 # pyurl = url_scheme_python
@@ -60,10 +63,14 @@ data = {
     'testlog': {
         'name': 'testlog',
         'level': 'debug',
+        'format': "%(asctime)s:%(levelname)s:%(name)s:%(message)s"},
+    'testlog2': {
+        'name': 'another name',
+        'level': 'warn',
         'format': "%(asctime)s:%(levelname)s:%(name)s:%(message)s"}
 }
 
-f = flange.Flange(data=data)
+f = flange.cfg.Cfg(data=data)
 
 #
 #   registry = f.register(schema)
@@ -88,6 +95,28 @@ def test_search_key_exact():
 
 def test_model_research():
     assert type(f.mget('testlog')) == logging.Logger
+
+
+def test_mget_by_name():
+    assert(f.mget('testlog'))
+    assert(f.mget('testlog2'))
+    assert(f.mget('testlog') != f.mget('testlog2'))
+
+
+def test_mget_by_model():
+    # An instance can be fetched by model name. If there are multiple instances a vfilter can be used
+    with assert_raises(ValueError):
+        f.mget(model='logger', raise_absent=True)
+    assert(f.mget(model='logger', vfilter='debug'))
+
+
+def test_mget_vfilter():
+    # vfilter can be used with or without the config key to retrieve an instance
+    assert(f.mget('testlog', vfilter='debug'))
+    assert(f.mget('testlog', vfilter='warn') == None)
+
+    assert(f.mget('testlog2', vfilter='warn'))
+    assert(f.mget('testlog2', vfilter='debug') == None)
 
 
 
@@ -145,9 +174,18 @@ def test_plugin_model():
         }
     }
 
-    f = flange.Flange(data=data, file_patterns=None)
+    f = flange.cfg.Cfg(data=data, file_patterns=None)
     assert f.mget('test_instance_key').get_value() == 'some value'
 
+
+
+def test_sqlalchemy_plugin():
+
+    try:
+        dbengine.register()
+    except ImportError as e:
+        # It's ok if sqlalchemy can't be found. Its not required
+        assert('sqlalchemy' in str(e))
 
 
 #
@@ -168,5 +206,6 @@ PATH_EXAMPLE = os.path.join(os.path.dirname(__file__), 'resources', 'dsh_example
 
 #
 def test_instantiate_from_explicit_file():
-    f = flange.from_file(PATH_EXAMPLE, root_ns='contexts__default')
+    f = flange.cfg.from_file(PATH_EXAMPLE, root_ns='contexts__default')
     assert f.search('vars')
+

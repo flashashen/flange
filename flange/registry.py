@@ -3,6 +3,11 @@ import copy, datetime
 from . import iterutils
 
 
+try:
+    basestring
+except NameError:
+    basestring = str
+
 
 
 import jsonschema
@@ -16,43 +21,10 @@ def validate(d, spec):
 
 
 
-class Registry(object):
-    '''
-        Base class for model and object registries
-    '''
-    def get_registration(self, config_key, raise_absent=False):
-
-        if len(self.registrations) == 0 or (config_key and config_key not in self.registrations):
-            if raise_absent:
-                raise ValueError("nothing registered under '{}'".format(config_key))
-            else:
-                return
-
-        if config_key:
-            return self.registrations[config_key]
-        else:
-            if len(self.registrations) == 1:
-                return self.registrations.values()[0]
-            else:
-                raise ValueError("Multiple valid configurations exist. Config id/key must be specified")
-
-    def list(self):
-        return self.registrations.keys()
-
-
-    def get(self, config_key=None, raise_absent=False):
-        return self.get_registration(config_key, raise_absent)
-
-    def __str__(self):
-        return self.__repr__()
-
-    def __repr__(self):
-        return "<{} contents={}>".format(self.__class__.__name__ , self.registrations.keys())
-
 
 
 # Construct a registry class that closes overs the creation function map
-class InstanceRegistry(Registry):
+class InstanceRegistry(object):
 
     def __init__(self, schema, factory, cache=True, mutable=False):
         self.registrations = {}
@@ -66,6 +38,12 @@ class InstanceRegistry(Registry):
         return jsonschema.validate(data, self.schema)
 
 
+    def matches_filter(self, registration, vfilter):
+        if not vfilter:
+            return True
+        return all([iterutils.search(registration['params'], term, exact=False, keys=False, values=True, path=None) for term in vfilter])
+
+
     def research(self, data):
         """
             Traverse the data dict recursively to find anything matching the schema. For every match, create
@@ -75,7 +53,7 @@ class InstanceRegistry(Registry):
         :return: None
         """
         for result in iterutils.research(data, query=lambda p,k,v: validate(v,self.schema), reraise=False):
-            self.registerParams(result[0][-1], result[1]);
+            self.registerContents(result[0][-1], result[1]);
 
 
     def registerInstance(self, key, instance):
@@ -86,13 +64,15 @@ class InstanceRegistry(Registry):
             'params_key_path': 'unknown',
             'params': None}
 
-    def registerParams(self, key, data):
+    def registerContents(self, key, data, validate=False):
         self.registrations[key] = {
             'cached_obj': None,
             'cached_since': None,
             'params_source': 'unknown',
             'params_key_path': 'unknown',
             'params': data if self.mutable else copy.deepcopy(data)}
+        if validate:
+            self.get(key)
 
 
 
@@ -115,13 +95,14 @@ class InstanceRegistry(Registry):
         return self.info(config_key)
 
 
-    def list(self):
+    def list(self, vfilter=None):
         return self.registrations.keys()
+        # return [k for k,v in self.registrations.items() if self.matches_filter(v, vfilter)]
 
 
-    def get(self, config_key=None, raise_absent=False):
+    def get(self, config_key=None, raise_absent=False, vfilter=None):
 
-        reg = self.get_registration(config_key, raise_absent)
+        reg = self.get_registration(config_key, raise_absent, vfilter)
         if reg:
 
             if reg['cached_obj']:
@@ -138,18 +119,58 @@ class InstanceRegistry(Registry):
             return obj
 
 
+    def get_registration(self, config_key, raise_absent=False, vfilter=None):
+
+        if isinstance(vfilter, basestring):
+            vfilter = [vfilter]
+
+
+        if config_key:
+
+            if config_key not in self.registrations.keys():
+                if raise_absent:
+                    raise ValueError("no registration found for '{}'".format(config_key))
+            else:
+                reg = self.registrations[config_key]
+
+                if not self.matches_filter(reg, vfilter):
+                    if raise_absent:
+                        raise ValueError("registration found for {} but did not match filters {}".format(config_key,vfilter))
+                else:
+                    return reg
+
+        else:
+            matches = [x for x in self.registrations.values() if self.matches_filter(x, vfilter)]
+            if not matches:
+                if raise_absent:
+                    raise ValueError("no registrations matched filters {}".format(vfilter))
+            elif len(matches) == 1:
+                return matches[0]
+            else:
+                raise ValueError("multiple matching configurations exist")
+
+
+
+
+    def __str__(self):
+        return self.__repr__()
+
+    def __repr__(self):
+        return "<{} contents={}>".format(self.__class__.__name__ , self.registrations.keys())
+
 
 
 logger_schema = {
     "type" : "object",
     "properties" : {
         'name':{'type':'string'},
-        'level':{'type':'string'},
+        'level': { "enum": ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG']},
+        # 'level':{'type':'string'},
         'format':{'type':'string'},
         'handler':{'type':'string'},
         'handler_args':{'type':'string'},
     },
-    "required": ["name", "level", "format"]
+    "required": ["name", "level"]
 }
 
 
@@ -168,7 +189,11 @@ def logger_factory(config):
             hdlr =  getattr(logging, config['handler'])(**hargs)
     else:
         hdlr = logging.StreamHandler()
-    hdlr.setFormatter(logging.Formatter("%(asctime)s:%(levelname)s:%(name)s:%(message)s"))
+    if 'format' in config:
+        hdlr.setFormatter(logging.Formatter(config['format']))
+    else:
+        hdlr.setFormatter(logging.Formatter("%(asctime)s:%(levelname)s:%(name)s:%(message)s"))
+
     log.handlers = []
     log.addHandler(hdlr)
     return log

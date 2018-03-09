@@ -1,9 +1,7 @@
-anyconfig==0.9.3
-certifi==2017.7.27.1
-chardet==3.0.4
-idna==2.6
+anyconfig==0.9.4
+flange==0.0.3
+functools32==3.2.3.post2
+jsonschema==2.6.0
 PyYAML==3.12
-requests==2.18.4
 six==1.11.0
-SQLAlchemy==1.1.14
-urllib3==1.22
+wheel==0.24.0
