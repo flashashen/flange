@@ -62,11 +62,11 @@ data = {
     'a':{'a2':{'a3a':'a3aval', 'a3b':'a3aval'}},
     'testlog': {
         'name': 'testlog',
-        'level': 'debug',
+        'level': 'DEBUG',
         'format': "%(asctime)s:%(levelname)s:%(name)s:%(message)s"},
     'testlog2': {
         'name': 'another name',
-        'level': 'warn',
+        'level': 'WARNING',
         'format': "%(asctime)s:%(levelname)s:%(name)s:%(message)s"}
 }
 
@@ -107,16 +107,16 @@ def test_mget_by_model():
     # An instance can be fetched by model name. If there are multiple instances a vfilter can be used
     with assert_raises(ValueError):
         f.mget(model='logger', raise_absent=True)
-    assert(f.mget(model='logger', vfilter='debug'))
+    assert(f.mget(model='logger', vfilter='DEBUG'))
 
 
 def test_mget_vfilter():
     # vfilter can be used with or without the config key to retrieve an instance
-    assert(f.mget('testlog', vfilter='debug'))
-    assert(f.mget('testlog', vfilter='warn') == None)
+    assert(f.mget('testlog', vfilter='DEBUG'))
+    assert(f.mget('testlog', vfilter='WARNING') == None)
 
-    assert(f.mget('testlog2', vfilter='warn'))
-    assert(f.mget('testlog2', vfilter='debug') == None)
+    assert(f.mget('testlog2', vfilter='WARNING'))
+    assert(f.mget('testlog2', vfilter='DEBUG') == None)
 
 
 
