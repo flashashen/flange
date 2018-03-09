@@ -1,7 +1,16 @@
 # Flange 
 
-Convenient application configuration loader with an object registry. 
+Convenient configuration search and load with a model based object registry. 
 
+*By the time you locate your notes, you could have been done:*
+
+```
+sh> python -c "from flange import cfg, dbengine; result = cfg.mget('my_mssql_db').execute('USE master SELECT @@version').first()[0]; cfg.mget('my_logger').debug(result)"
+2018-03-09 15:49:55,726:DEBUG:myapp  Microsoft SQL Server 2008 (SP4) - 10.0.6000.29 (X64) 
+	Sep  3 2014 04:11:34 
+	Copyright (c) 1988-2008 Microsoft Corporation
+	Enterprise Edition (64-bit) on Windows NT 6.1 <X64> (Build 7601: Service Pack 1) (VM)
+```
 
 **You want this if**:
 
@@ -16,19 +25,20 @@ of config and credentials
  
 ## What it does
 
-- Automatically loads configuration data in various formats using Anyconfig
-- Merges configuration from various sources use Anyconfig
+- Automatically searches for and loads (configuration) data in various formats using Anyconfig
+- Merges configuration from various sources using Anyconfig
+- Pluggable, automatic object detection/creation from config data
 - Object registry with lazy init and cache
-- Pluggable, automatic object detection/creation from data sources based on jsonschema
 - Convenient object access 
 
 This is partially inspired by the Spring framework. On init, the main configuration object 
-will search for a given set of file pattern at a given directory depth for config data
-and will merge this data into a single configuration object.
+will search for a given set of file pattern at a given directory to a given depth for config 
+data and will merge this data into a single configuration object.
 
-Additionally, a object registry is provided that can recognize patterns in the config data
-and create instances on demand of any type of object. Recognition currently uses json schema 
-to identify patterns and a python function is provided that serves as the factory method. 
+Additionally, an object registry is provided that can recognize patterns in the config data
+and return cached instances on demand of any type of object. Object initialization is automatic and lazy.
+Recognition of instances currently employs json schema 
+to identify patterns and a python function is provided that serves as the factory function. 
 The factory method can be given explicity in python or specified as url that resolves to a 
 python function. The combination of a schema and a factory function along with a name are 
 called a 'model'.  
