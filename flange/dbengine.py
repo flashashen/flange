@@ -16,7 +16,7 @@ dbengine_schema = {
 }
 
 def dbengine_create_func(config):
-    url_format_string = "{:s}://{:s}:{:s}@{:s}:{:s}/{:s}?charset=utf8"
+    url_format_string = "{:s}://{:s}:{:s}@{:s}:{:s}/{:s}?"
     engine = create_engine(url_format_string.format(
         config['driver'],
         config['user'],
