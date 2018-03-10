@@ -2,7 +2,29 @@
 
 Convenient configuration search and load with a model based object registry. 
 
-*By the time you locate your notes, you could have been done:*
+*With bits of config you may already have lying around..*
+``` yaml
+
+  # somewhere in a config file ..
+  my_logger:
+    name: myapp
+    level: DEBUG
+    format: "%(asctime)s:%(levelname)s:%(name)s  %(message)s"
+    
+
+  # somewhere in a different config file ..
+  my_mssql_db:
+    driver: mssql+pymssql
+    name: dbname
+    user: devuser
+    pass: devpass
+    host: dbhost.dev.corp
+    port: '1111'
+    desc: dev db
+    args: {'login_timeout':6}
+```
+
+*you can do this..*
 
 ```
 sh> python -c "from flange import cfg, dbengine; result = cfg.mget('my_mssql_db').execute('USE master SELECT @@version').first()[0]; cfg.mget('my_logger').debug(result)"
@@ -128,7 +150,7 @@ This is another example with the default settings. The loaded data is described
 with the info() method. The the dbengine module is imported which automatically registers 
 an sqlalchemy based model and searches for any configuration that is a valid/sufficient for a 
 sqlalchemy engine. Note: sqlalchemy is an example built-in model. Any sort of model can be 
-registered. **Note that after the import of dbengine module, the new model and it's instances
+registered. **Note that after the import of dbengine module, the 'dbengine' model and it's instances
 appear in the output.**
 
 ```
@@ -237,10 +259,11 @@ def register():
 register()
 ```
     
-The same plugin registration can be accomplished with just configuration. Here is an example from the 
-tests in this project. For this to work a python factory function must exist in the python 
-path. This function is resolved via a local url. Here the schema is resolved via a url, but 
-the schema can appear directly in the configuration. With those caveats, The following is all 
+The example above showed explicit registration from python. Plugin registration can also be accomplished 
+with just configuration. Here is an example from the 
+tests in this project. For this to work, a python factory function must exist in the python 
+path, resolved via a local url *(see example for url format)*. This config must also appear somewhere in the loaded
+config data loaded by flange. With those caveats, The following is all 
 that is required to register a custom model and start accessing instances: 
 
 ```
@@ -252,8 +275,14 @@ config_with_plugin = {
 
     'test_plugin_config_key': {
         'type': 'FLANGE.TYPE.PLUGIN',
-        'schema': 'python://{}.TestPlugin.get_schema__static'.format(module_name),
-        'factory': 'python://{}.TestPlugin().get_instance'.format(module_name)
+        'schema': {
+            'type': 'object',
+            'properties':{
+                'only_TestPlugin_would_match_this': {'type': 'string'}
+            },
+            'required': ['only_TestPlugin_would_match_this']
+        },
+        'factory': 'python://flange.test.TestPlugin().get_instance'
     }
 }
 ```
