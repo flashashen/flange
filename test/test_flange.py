@@ -169,7 +169,13 @@ def test_plugin_model():
 
         'test_plugin_config_key': {
             'type': 'FLANGE.TYPE.PLUGIN',
-            'schema': 'python://{}.TestPlugin.get_schema__static'.format(module_name),
+            'schema': {
+                'type': 'object',
+                'properties':{
+                    'only_TestPlugin_would_match_this': {'type': 'string'}
+                },
+                'required': ['only_TestPlugin_would_match_this']
+            },
             'factory': 'python://{}.TestPlugin().get_instance'.format(module_name)
         }
     }
