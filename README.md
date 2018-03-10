@@ -22,6 +22,10 @@ Convenient configuration search and load with a model based object registry.
     port: '1111'
     desc: dev db
     args: {'login_timeout':6}
+    
+  
+  # from env vars
+   export my_mssql_db__pass=devpass
 ```
 
 *you can do this..*
