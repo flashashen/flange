@@ -1,5 +1,13 @@
 # Flange 
 
+![CircleCI](https://circleci.com/gh/flashashen/flange.svg?style=svg)
+[![PyPI version](https://badge.fury.io/py/flange.svg)](https://badge.fury.io/py/flange)
+![Python versions](https://img.shields.io/pypi/pyversions/flange.svg)
+![MIT License](https://img.shields.io/github/license/flashashen/flange.svg)
+
+
+---------------------------------------------------------
+
 Convenient configuration search and load with a model based object registry. 
 
 *With bits of config you may already have lying around..*

@@ -400,7 +400,7 @@ class Cfg(object):
 
         print('\nsources:')
         for src in self.sources:
-            print("{0:20} {1}".format(src.parser, src.uri))
+            print("{0:20} {1}".format(str(src.parser), str(src.uri)))
 
 
 
