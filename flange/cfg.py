@@ -2,6 +2,7 @@
 import anyconfig, os, fnmatch, string, six
 from . import iterutils, url_scheme_python as pyurl
 from .registry import InstanceRegistry, LOG_REGISTRY
+from six import iteritems
 
 
 PARSABLES = {
@@ -16,7 +17,7 @@ PARSABLES = {
 DEFAULT_EXCLUDE_PATTERNS = ['*.tar','*.jar','*.zip','*.gz','*.swp','node_modules','target','.idea','*.hide','*save']
 DEFAULT_FILE_PATTERNS = ['*.yml','*cfg','*settings','*config','*properties','*props']
 VALID_KEY_CHARS = [c for c in string.printable if c not in ['_'] ]
-VALID_KEY_FUNC = lambda k: isinstance(k, six.string_types) and len(k)<50 and all(c in string.printable for c in VALID_KEY_CHARS)
+VALID_KEY_FUNC = lambda k: isinstance(k, int) or (isinstance(k, six.string_types) and len(k)<50 and all(c in string.printable for c in VALID_KEY_CHARS))
 
 
 PLUGIN_SCHEMA = {
@@ -43,14 +44,15 @@ def register_default_plugin(name, schema, factory):
 
 
 
+def from_home_dir(root_ns=None, file_ns_from_dirname=False, include_os_env=False):
+    return Cfg(base_dir='~', root_ns=root_ns, file_ns_from_dirname=file_ns_from_dirname, include_os_env=include_os_env)
 
-def from_file(filename, root_ns=None, file_ns_from_dirname=False):
+def from_file(filename, root_ns=None, file_ns_from_dirname=False, include_os_env=False):
     path, basename = os.path.split(os.path.realpath(os.path.expanduser(filename)))
-    return Cfg(root_ns=root_ns, file_ns_from_dirname=file_ns_from_dirname, include_os_env=False, base_dir=path, file_patterns=[basename])
+    return Cfg(root_ns=root_ns, file_ns_from_dirname=file_ns_from_dirname, include_os_env=include_os_env, base_dir=path, file_patterns=[basename])
 
-def from_dict(d):
-    return Cfg(data=d, file_patterns=None)
-
+def from_dict(d, root_ns=None, include_os_env=False):
+    return Cfg(data=d, root_ns=root_ns, file_patterns=None, include_os_env=include_os_env)
 
 def from_os_env(root_ns=None):
     return Cfg(root_ns=root_ns, include_os_env=True, file_patterns=[])
@@ -102,7 +104,7 @@ def merge(dicts, unflatten_separator=None, strategy=anyconfig.MS_DICTS_AND_LISTS
     failed = []
     for d in dicts:
         try:
-            anyconfig.merge(merged, unflatten(d, unflatten_separator), ac_merge=anyconfig.MS_DICTS_AND_LISTS)
+            anyconfig.merge(merged, unflatten(d, unflatten_separator), ac_merge=strategy)
         except:
             print
             failed.append(d)
@@ -188,13 +190,15 @@ class Source(object):
     def parse(self, parser=None):
 
         def filter_and_index(source, p,k,v):
+
+            # print p, k, v
             if not VALID_KEY_FUNC(k):
+                # print 'VALID_KEY_FUNC says no'
                 return False
             source.add_path_visited(p, k)
             return k, v
 
         d = anyconfig.load(self.uri, ac_parser=parser, ac_ordered=True)
-
         self.set_contents(
             iterutils.remap(d, lambda p, k, v: filter_and_index(self, p, k, v)),
             parser if parser else os.path.splitext(self.uri)[1].strip('.'))
@@ -231,23 +235,32 @@ class Source(object):
 
 
 
-# {'src': 'os', 'ns': 'os', 'dict': d, 'ac_parser': None, 'paths': []}
-
-
 class Cfg(object):
     
     def __init__(self, 
                 data=None,
                 include_os_env=True,
                 research_models=True,
-                model_specs=None,
                 root_ns='',
                 base_dir='.',
                 file_patterns=DEFAULT_FILE_PATTERNS,
                 file_exclude_patterns=DEFAULT_EXCLUDE_PATTERNS,
-                file_search_depth=1,
-                file_ns_from_dirname=True,
+                file_search_depth=0,
+                file_ns_from_dirname=False,
                 unflatten_separator='__'):
+        """
+
+        :param data: initial data. This is merged as is without regard to root_ns
+        :param include_os_env:
+        :param research_models:
+        :param root_ns: the namespace/key under which to add all loaded config/data. If model instances are defined at top level this will be needed
+        :param base_dir: directory or list of directories to search for config/data. ** order matters! later entries override earlier.
+        :param file_patterns:
+        :param file_exclude_patterns:
+        :param file_search_depth:
+        :param file_ns_from_dirname:
+        :param unflatten_separator:
+        """
 
 
         self.unflatten_separator=unflatten_separator
@@ -321,7 +334,8 @@ class Cfg(object):
                     exclude=file_exclude_patterns,
                     search_depth=file_search_depth,
                     ns=root_ns,
-                    ns_from_dirname=file_ns_from_dirname))
+                    ns_from_dirname=file_ns_from_dirname,
+                   unflatten_separator=unflatten_separator))
 
 
             # for f in matching_files:
@@ -369,18 +383,17 @@ class Cfg(object):
 
         self.models.research(self.data)
 
-        for modelname in self.models.list():
+        for modelname in self.models.keys():
             model = self.models.get(modelname)
             model.research(self.data)
-
 
 
 
     def info(self):
 
         print('\nmodels:')
-        for name, reg in self.models.registrations.items():
-            print("{0:20} instances: {1}".format(name.strip(), ','.join(reg['cached_obj'].list())))    # name.strip(), '\tinstances:', ','.join(reg['cached_obj'].list()))
+        for name, val in iteritems(self.models.items()):
+            print("{0:20} instances: {1}".format(name.strip(), ','.join(val.keys()) if name and val else ''))    # name.strip(), '\tinstances:', ','.join(reg['cached_obj'].list()))
 
         print('\nbase dir: \t{}\nsearch depth: \t{}\nfile include patterns: \t{}\nfile exclude patterns: \t{}'.format(
             self.base_dir , self.file_search_depth, self.file_patterns, self.file_exclude_patterns))
@@ -455,7 +468,7 @@ class Cfg(object):
     
     def get(self, key, model=None, first=False, raise_absent=False, path=None, vfilter=None):
         if model:
-            if model not in self.models.list():
+            if model not in self.models.keys():
                 raise ValueError("no model named '{}'".format(model))
             return self.models.get(model).get(key)
         else:
@@ -474,12 +487,12 @@ class Cfg(object):
     
         if model:
             # print('getting by model name ', model_name
-            if model not in self.models.list():
+            if model not in self.models.keys():
                 raise ValueError("no model named '{}'".format(model))
 
             models = [model]
         else:
-            models = self.models.list()
+            models = self.models.keys()
 
 
 
@@ -489,7 +502,7 @@ class Cfg(object):
 
         if len(l) == 0:
             if raise_absent:
-                raise ValueError('no match found')
+                raise ValueError("no instance '{}' found".format(config_key))
             return
         elif len(l) > 1:
             raise ValueError('multiple matches found')
@@ -500,11 +513,13 @@ class Cfg(object):
 
 
     @staticmethod
-    def __get_file_source(filename, ns=None, ns_from_dirname=True):
+    def __get_file_source(filename, ns=None, ns_from_dirname=True, unflatten_separator='__'):
 
         full_file_path = os.path.realpath(os.path.expanduser(filename))
         if not ns:
-            ns = os.path.split(os.path.dirname(full_file_path))[-1].strip('.') if ns_from_dirname else ''
+            ns = ''
+        if ns_from_dirname:
+            ns = ns + unflatten_separator + os.path.split(os.path.dirname(full_file_path))[-1].strip('.')
         return Source.from_file(full_file_path, ns)
 
 
@@ -515,7 +530,8 @@ class Cfg(object):
             exclude=DEFAULT_EXCLUDE_PATTERNS,
             search_depth=1,
             ns=None,
-            ns_from_dirname=True):
+            ns_from_dirname=True,
+            unflatten_separator='__'):
 
         sources = []
         for root, dirnames, filenames in os.walk(base_dir, topdown=True):
@@ -539,7 +555,7 @@ class Cfg(object):
                     to_include.add(os.path.join(root, filename))
 
             for s in to_include:
-                sources.append(Cfg.__get_file_source(s, ns=ns, ns_from_dirname=ns_from_dirname))
+                sources.append(Cfg.__get_file_source(s, ns=ns, ns_from_dirname=ns_from_dirname, unflatten_separator=unflatten_separator))
 
         return sources
 

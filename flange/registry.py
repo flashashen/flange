@@ -1,7 +1,7 @@
 
 import copy, datetime
 from . import iterutils
-
+from six import iteritems
 
 try:
     basestring
@@ -27,15 +27,40 @@ def validate(d, spec):
 class InstanceRegistry(object):
 
     def __init__(self, schema, factory, cache=True, mutable=False):
-        self.registrations = {}
-        self.schema = schema
-        self.factory = factory
-        self.cache = cache
-        self.mutable = mutable
+        self._registrations = {}
+        self.__schema = schema
+        self.__factory = factory
+        self.__cache = cache
+        self.__mutable = mutable
+
+
+
+    #
+    #  methods for dict like access
+    #
+    def __getattr__(self, item):
+        obj = self.get(item)
+        if obj:
+            return obj
+        raise AttributeError
+
+    def __getitem__(self, item):
+        return self.__getattr__(item)
+
+    def keys(self):
+        return self._registrations.keys()
+
+    def values(self):
+        return [x['cached_obj'] for x in self._registrations.values()]
+
+    def items(self):
+        return { k: v['cached_obj'] for k, v in iteritems(self._registrations)}
+
+
 
 
     def validate(self, data):
-        return jsonschema.validate(data, self.schema)
+        return jsonschema.validate(data, self.__schema)
 
 
     def matches_filter(self, registration, vfilter):
@@ -52,12 +77,12 @@ class InstanceRegistry(object):
         :param data: input data to research
         :return: None
         """
-        for result in iterutils.research(data, query=lambda p,k,v: validate(v,self.schema), reraise=False):
+        for result in iterutils.research(data, query=lambda p,k,v: validate(v,self.__schema), reraise=False):
             self.registerContents(result[0][-1], result[1]);
 
 
     def registerInstance(self, key, instance):
-        self.registrations[key] = {
+        self._registrations[key] = {
             'cached_obj': instance,
             'cached_since': datetime.datetime.now(),
             'params_source': 'unknown',
@@ -65,12 +90,14 @@ class InstanceRegistry(object):
             'params': None}
 
     def registerContents(self, key, data, validate=False):
-        self.registrations[key] = {
+        if not key:
+            raise ValueError("invalid registration key: {}. This could result from a valid model instance at top level of data. Try providing a value for 'root_ns'".format(key))
+        self._registrations[key] = {
             'cached_obj': None,
             'cached_since': None,
             'params_source': 'unknown',
             'params_key_path': 'unknown',
-            'params': data if self.mutable else copy.deepcopy(data)}
+            'params': data if self.__mutable else copy.deepcopy(data)}
         if validate:
             self.get(key)
 
@@ -78,13 +105,13 @@ class InstanceRegistry(object):
 
     def info(self):
         import pprint
-        return pprint.pformat({'registry': [name for name in self.registrations.keys()]})
+        return pprint.pformat({'registry': [name for name in self._registrations.keys()]})
 
 
 
     def update(self, config_key, **kargs):
 
-        if not self.mutable:
+        if not self.__mutable:
             raise Exception('Registry configured as immutable')
 
         reg = self.get_registration(config_key)
@@ -95,9 +122,9 @@ class InstanceRegistry(object):
         return self.info(config_key)
 
 
-    def list(self, vfilter=None):
-        return self.registrations.keys()
-        # return [k for k,v in self.registrations.items() if self.matches_filter(v, vfilter)]
+    # def list(self, vfilter=None):
+    #     return self._registrations.keys()
+    #     # return [k for k,v in self._registrations.items() if self.matches_filter(v, vfilter)]
 
 
     def get(self, config_key=None, raise_absent=False, vfilter=None):
@@ -111,8 +138,8 @@ class InstanceRegistry(object):
             if not 'params':
                 raise ValueError('either a pre-created object or factory parameters must be given')
 
-            obj = self.factory(reg['params'])
-            if self.cache:
+            obj = self.__factory(reg['params'])
+            if self.__cache:
                 reg['cached_obj'] = obj
                 reg['cached_since']= datetime.datetime.now()
 
@@ -127,11 +154,11 @@ class InstanceRegistry(object):
 
         if config_key:
 
-            if config_key not in self.registrations.keys():
+            if config_key not in self._registrations.keys():
                 if raise_absent:
                     raise ValueError("no registration found for '{}'".format(config_key))
             else:
-                reg = self.registrations[config_key]
+                reg = self._registrations[config_key]
 
                 if not self.matches_filter(reg, vfilter):
                     if raise_absent:
@@ -140,7 +167,7 @@ class InstanceRegistry(object):
                     return reg
 
         else:
-            matches = [x for x in self.registrations.values() if self.matches_filter(x, vfilter)]
+            matches = [x for x in self._registrations.values() if self.matches_filter(x, vfilter)]
             if not matches:
                 if raise_absent:
                     raise ValueError("no registrations matched filters {}".format(vfilter))
@@ -156,7 +183,7 @@ class InstanceRegistry(object):
         return self.__repr__()
 
     def __repr__(self):
-        return "<{} contents={}>".format(self.__class__.__name__ , self.registrations.keys())
+        return "<{} contents={}>".format(self.__class__.__name__ , self._registrations.keys())
 
 
 

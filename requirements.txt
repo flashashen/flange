@@ -1,5 +1,5 @@
 anyconfig==0.9.4
-flange==0.0.3
+flange==0.0.4
 functools32==3.2.3.post2
 jsonschema==2.6.0
 PyYAML==3.12
