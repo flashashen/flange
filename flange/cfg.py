@@ -17,7 +17,9 @@ PARSABLES = {
 DEFAULT_EXCLUDE_PATTERNS = ['*.tar','*.jar','*.zip','*.gz','*.swp','node_modules','target','.idea','*.hide','*save']
 DEFAULT_FILE_PATTERNS = ['*.yml','*cfg','*settings','*config','*properties','*props']
 VALID_KEY_CHARS = [c for c in string.printable if c not in ['_'] ]
-VALID_KEY_FUNC = lambda k: isinstance(k, int) or (isinstance(k, six.string_types) and len(k)<50 and all(c in string.printable for c in VALID_KEY_CHARS))
+
+DEFAULT_FILTER = lambda p,k,v: isinstance(k, int) or (isinstance(k, six.string_types) and len(k)<50 and all(c in string.printable for c in VALID_KEY_CHARS))
+DEFAULT_INDEXER = None
 
 
 PLUGIN_SCHEMA = {
@@ -152,63 +154,72 @@ def __expand_keys(k, v, separator, replace):
 
 class Source(object):
 
-    def __init__(self, uri, ns=None, contents={}, parser=None, error=None):
+    def __init__(self, uri, ns=None, contents={}, parser=None, error=None, filter=DEFAULT_FILTER, indexer=DEFAULT_INDEXER):
         self.uri = uri
         self.ns = ns
-        self.contents = contents
-        self.parser = parser
         self.error = error
 
-        self.paths = []
+        self.filter = filter
+        self.indexer = indexer
 
+        if contents:
+            self.set_contents(contents, parser)
+
+
+    def __repr__(self):
+        return self.__str__()
     def __str__(self):
-        return "<Source uri={} ns='{}' size={}>".format(self.uri, self.ns, len(self.contents))
+        return "<Source uri={} ns={} parser={} len={}>".format(self.uri, self.ns, self.parser, len(self.contents[self.ns]) if self.ns else len(self.contents))
 
-    def add_path(self, path):
-        self.paths.append(path)
 
     def set_contents(self, contents, parser=None):
         """
-        Set the dict like contents adding under the namespace if there is one
-        :param contents: contents of resource at uri in dict form
+        Set the dict like contents, applying filter and indexer and
+        adding under the namespace if provided
+        :param contents: contents of resource in dict form
         :param parser: Currently this is just the anyconfig parser name
         :return: None
         """
+        if contents:
+            contents = iterutils.remap(contents, lambda p, k, v: self.__filter_and_index(p, k, v))
+        else:
+            contents = {}
+
         self.contents = {self.ns: contents} if self.ns else contents
         self.parser = parser
 
-    def add_path_visited(self, path_no_ns, key):
-        """
-        Add to paths list from inputs given by iterutils.visit
-        :param path_no_ns: path tuple not including key
-        :param key: key
-        :return: None
-        """
-        self.add_path((self.ns,) + path_no_ns + (key,) if self.ns else path_no_ns + (key,))
+
+    def __filter_and_index(self, p,k,v):
+
+        # Prepend the namespace to the path to match how
+        # this item will appear in the resulting data
+        np = (self.ns,) + p if self.ns else p
+
+        if not self.filter(np, k, v):
+            return False
+
+        if self.indexer:
+            self.indexer(self, np, k, v)
+
+        return k, v
 
 
     def parse(self, parser=None):
 
-        def filter_and_index(source, p,k,v):
-
-            # print p, k, v
-            if not VALID_KEY_FUNC(k):
-                # print 'VALID_KEY_FUNC says no'
-                return False
-            source.add_path_visited(p, k)
-            return k, v
-
-        d = anyconfig.load(self.uri, ac_parser=parser, ac_ordered=True)
         self.set_contents(
-            iterutils.remap(d, lambda p, k, v: filter_and_index(self, p, k, v)),
+            anyconfig.load(self.uri, ac_parser=parser, ac_ordered=True),
             parser if parser else os.path.splitext(self.uri)[1].strip('.'))
         # print '\n\n\naccepted:\n', d
 
 
     @staticmethod
-    def from_file(full_file_path, ns):
+    def from_file(
+            full_file_path,
+            ns,
+            filter=DEFAULT_FILTER,
+            indexer=DEFAULT_INDEXER):
 
-        s = Source(full_file_path, ns)
+        s = Source(full_file_path, ns, filter=filter, indexer=indexer)
 
         try:
             s.parse()
@@ -273,8 +284,7 @@ class Cfg(object):
         self.root_ns=root_ns
         self.init_data = {}
         self.sources = []
-        # dicts = []
-
+        self.path_index = {}
 
         self.add_file_set(
             root_ns=root_ns,
@@ -289,12 +299,14 @@ class Cfg(object):
         if self.include_os_env:
             d = os.environ.copy()
             # dicts.append(d)
-            self.sources.append(Source('os_env', 'os', d))
+            self.sources.append(Source('os_env', 'os', d, filter=DEFAULT_FILTER,
+                indexer=lambda src, p, k, v: Cfg.__index_path(self.path_index, src, p, k, v)))
 
         if data:
             self.init_data = data
             # dicts.append(data)
-            self.sources.append(Source('init_data', '', data))
+            self.sources.append(Source('init_data', '', data, filter=DEFAULT_FILTER,
+                indexer=lambda src, p, k, v: Cfg.__index_path(self.path_index, src, p, k, v)))
 
 
         self.merge_sources()
@@ -304,6 +316,15 @@ class Cfg(object):
 
         else:
             self.models = InstanceRegistry(PLUGIN_SCHEMA, Cfg.__create_registry_from_config)
+
+
+    @staticmethod
+    def __index_path(index, src, p, k, v):
+        cp = p + (k,)
+        if cp in index:
+            index[cp].add(src)
+        else:
+            index[cp] = set([src])
 
 
     def merge_sources(self):
@@ -335,7 +356,9 @@ class Cfg(object):
                     search_depth=file_search_depth,
                     ns=root_ns,
                     ns_from_dirname=file_ns_from_dirname,
-                   unflatten_separator=unflatten_separator))
+                    unflatten_separator=unflatten_separator,
+                    filter=DEFAULT_FILTER,
+                    indexer=lambda src, p, k, v: Cfg.__index_path(self.path_index, src, p, k, v)))
 
 
             # for f in matching_files:
@@ -474,7 +497,19 @@ class Cfg(object):
         else:
             return iterutils.get(self.data, key, first, raise_absent, path, vfilter)
 
-    
+
+    def sget(self, key):
+
+        # First search for the key to get a list of matching paths
+        d = self.search(key, exact=True)
+        if not d:
+            return
+
+        #
+        if not d[0][0] in self.path_index:
+            return
+        return list(self.path_index[d[0][0]])
+
     def mget(self, config_key=None, model=None, vfilter=None, raise_absent=False):
         """
             Get a matching instance from the model registries
@@ -513,14 +548,20 @@ class Cfg(object):
 
 
     @staticmethod
-    def __get_file_source(filename, ns=None, ns_from_dirname=True, unflatten_separator='__'):
+    def __get_file_source(
+            filename,
+            ns=None,
+            ns_from_dirname=True,
+            unflatten_separator='__',
+            filter=DEFAULT_FILTER,
+            indexer=DEFAULT_INDEXER):
 
         full_file_path = os.path.realpath(os.path.expanduser(filename))
         if not ns:
             ns = ''
         if ns_from_dirname:
             ns = ns + unflatten_separator + os.path.split(os.path.dirname(full_file_path))[-1].strip('.')
-        return Source.from_file(full_file_path, ns)
+        return Source.from_file(full_file_path, ns, filter=filter, indexer=indexer)
 
 
     @staticmethod
@@ -531,7 +572,9 @@ class Cfg(object):
             search_depth=1,
             ns=None,
             ns_from_dirname=True,
-            unflatten_separator='__'):
+            unflatten_separator='__',
+            filter=DEFAULT_FILTER,
+            indexer=DEFAULT_INDEXER):
 
         sources = []
         for root, dirnames, filenames in os.walk(base_dir, topdown=True):
@@ -555,7 +598,13 @@ class Cfg(object):
                     to_include.add(os.path.join(root, filename))
 
             for s in to_include:
-                sources.append(Cfg.__get_file_source(s, ns=ns, ns_from_dirname=ns_from_dirname, unflatten_separator=unflatten_separator))
+                sources.append(Cfg.__get_file_source(
+                    s,
+                    ns=ns,
+                    ns_from_dirname=ns_from_dirname,
+                    unflatten_separator=unflatten_separator,
+                    filter=filter,
+                    indexer=indexer))
 
         return sources
 
