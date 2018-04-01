@@ -6,7 +6,7 @@ init:
   - pip install -U pip setuptools wheel twine keyring
 
 test:
-  - nosetests
+  - tox
 
 install:
   - pip install -e .

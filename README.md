@@ -113,7 +113,7 @@ the object is accessed with the mget(..) method *(model get)*  like this:
 ```
 In [1]: from flange import cfg
 
-In [2]: log = cfg.mget('my_logger')
+In [2]: log = cfg.obj('my_logger')
 
 In [3]: log.debug('hello')
 2018-03-09 14:08:17,261:DEBUG:myapp hello
@@ -123,36 +123,36 @@ if the key in the configuration is not known, then the instance can be fetched
 with just the model name *(provided there is only one instance)*:
 
 ```
-In [4]: cfg.mget(model='logger').debug('hello')
+In [4]: cfg.obj(model='logger').debug('hello')
 2018-03-09 14:43:07,514:DEBUG:myapp  hello
 ``` 
 
-.. or just by specifying a value in the instance config with vfilter:
+.. or just by specifying a value in the instance config with 'values' parameter:
 
 ```
-In [5]: cfg.mget(vfilter='myapp').debug('hello')
+In [5]: cfg.mget(values='myapp').debug('hello')
 2018-03-09 14:42:50,785:DEBUG:myapp  hello
 ```
 
-.. or by specifying multiple values in the instance config with vfilter:
+.. or by specifying multiple values in the instance config with 'values' parameter:
 
 ```
-In [6]: cfg.mget(vfilter=['myapp','DEBUG']).debug('hello')
+In [6]: cfg.mget(values=['myapp','DEBUG']).debug('hello')
 2018-03-09 14:51:36,742:DEBUG:myapp  hello
 ```
 
-Any combination of key, model, and vfilter terms can be given to select a 
+Any combination of key, model, and values terms can be given to select a 
 unique instance with the mget(..) method.
 
 
-the raw config can also be accessed with the get(..) method:
+the raw config can also be accessed with the value(..) method:
 
 ```
-In [7]: cfg.get('my_logger')
+In [7]: cfg.value('my_logger')
 Out[7]: 
-OrderedDict([('name', 'dshlog'),
-             ('level', 'DEBUG'),
-             ('format', '%(asctime)s:%(levelname)s %(message)s')])
+{'name', 'dshlog',
+ 'level', 'DEBUG'),
+ 'format', '%(asctime)s:%(levelname)s %(message)s'}
 ```
 
 
@@ -228,7 +228,7 @@ yml                  /Users/myuser/Downloads/config_example.yml
 yml                  /Users/myuser/workspace/docker-compose-swarm.yml
 
 
-In [6]: cfg.mget('db1')
+In [6]: cfg.obj('db1')
 Out[6]: Engine(mssql+pymssql://corpdomain\corpuser:***@dbhost:1111/dbname?charset=utf8)
 ```
 
@@ -265,10 +265,12 @@ def dbengine_create_func(config):
     return engine
 
 
-def register():
-    cfg.register_default_plugin('dbengine', dbengine_schema, dbengine_create_func)
+cfg.register_default_model(
+    'dbengine',
+    model.Model('dbengine',
+                model.Model.get_schema_validator(dbengine_schema),
+                dbengine_create_func))
 
-register()
 ```
     
 The example above showed explicit registration from python. Plugin registration can also be accomplished 
@@ -306,8 +308,3 @@ config_with_plugin = {
 pip install flange
 ```
 
-### TODO
-
-- encrypt data files, read encrypted files 
-- Edit data and write back to src files 
-- Provide prompts for missing elements given a dict and a model/schema
