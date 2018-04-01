@@ -1,4 +1,4 @@
-import url_scheme_python as pyurl
+from . import url_scheme_python as pyurl
 import jsonschema
 import datetime
 import six
