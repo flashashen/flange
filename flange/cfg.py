@@ -422,7 +422,9 @@ class Cfg(object):
     def register_model(self, name, model, research=True):
         self.models[name] = model
         if research:
-            model.research(self.data)
+            iterutils.research(
+                self.data,
+                query=lambda p, k, v: self.__visit_index_model_instance([model], p, k, v))
 
 
     def __filter_and_index(self, src, p, k, v):
