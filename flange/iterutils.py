@@ -1279,7 +1279,7 @@ def unflatten(data, separator='.', replace=True):
 
 def __expand_keys(k, v, separator, replace):
     if isinstance(v, dict):
-        newvalue = dict(v)
+        newvalue = v.copy()
         for dkey, dvalue in v.items():
             if replace:
                 del newvalue[dkey]
