@@ -1326,7 +1326,7 @@ def __query(p, k, v, accepted_keys=None, required_values=None, path=None, exact=
     return True
 
 
-def search(data, path=None, required_values=None, exact=True):
+def search(data, path=None, required_values=None, exact=False):
     '''
 
     :param data:
@@ -1338,22 +1338,58 @@ def search(data, path=None, required_values=None, exact=True):
     :return: list of matches in the form ((path nesting sequence), value)
     '''
 
-    if isinstance(path, six.string_types):
-        accepted_keys = [path]
-        path = None
-    elif path:
-        accepted_keys = [path[-1]]
-        path = path[:-1]
+    # def has_required_values()
+    if not path:
+        matches = research(
+            data,
+            query=lambda p, k, v: __query(p, k, v, accepted_keys=accepted_keys, required_values=required_values, path=path, exact=exact),
+            reraise=False)
     else:
-        accepted_keys = []
+        import dpath
+        matches = [(tuple(x[0].split('/')), x[1],) for x in dpath.util.search(data, path, yielded=True) if x[0]]
+
+    if required_values:
+
+        if isinstance(required_values, six.string_types):
+            required_values = [required_values]
+
+        for m in matches:
+            v = m[1]
+            if isinstance(v, dict):
+                v = v.values()
+            elif isinstance(v, six.string_types):
+                v = [v]
+            else:
+                # assume is already some iterable type
+                pass
+
+            # Find all terms in the required_values that have a match somewhere in the values of the v dict. If the
+            # list is shorter than required_values then some terms did not match and this v fails the test.
+            if len(required_values) > len([term for term in required_values for nv in v if term == nv or term in nv]):
+                return []
+
+    return matches
 
 
-    results = research(
-        data,
-        query=lambda p, k, v: __query(p, k, v, accepted_keys=accepted_keys, required_values=required_values, path=path, exact=exact),
-        reraise=False)
 
-    return results
+#
+# if isinstance(path, six.string_types):
+#         accepted_keys = [path]
+#         path = None
+#     elif path:
+#         accepted_keys = [path[-1]]
+#         path = path[:-1]
+#     else:
+#         accepted_keys = []
+#
+#
+#     results = research(
+#         data,
+#         query=lambda p, k, v: __query(p, k, v, accepted_keys=accepted_keys, required_values=required_values, path=path, exact=exact),
+#         reraise=False)
+#
+#     return results
+
     # test against paths
     # if len(path) == 1:
     #

@@ -84,33 +84,34 @@ f = flange.cfg.Cfg(data=data)
 
 
 def test_search_key_exact():
-    assert f.search('a3b', exact=True, raise_absent=True)
-    assert not f.search('a3', exact=True)
-    assert not f.search('a3b_', exact=True)
+    assert f.search('a/a2/a3b')
+    assert f.search('a/a2/a3*')
+    assert not f.search('a/a2/a3')
+    assert not f.search('a/a2/a3b_')
 
 
 @raises(ValueError)
 def test_search_key_exact_raise():
-    assert not f.search('3b', exact=True, raise_absent=True)
+    f.search('3b', raise_absent=True)
 
 
 def test_search_key_fuzzy():
-    assert f.search('a3b', exact=False, raise_absent=True)
-    assert len(f.search('a3', unique=False, exact=False)) == 2
-    assert not f.search('a3bx', exact=False)
-    assert not f.search('XX', exact=False)
+    assert f.search('**/a3b*')
+    assert len(f.search('**/a3*', unique=False)) == 2
+    assert not f.search('a/a2/a3bx*')
+    assert not f.search('a/a2/*XX*')
 
 
 @raises(ValueError)
 def test_multiples_raise_when_unique_specified():
     # even with 'p' given, unique means unique
-    f.search('a3', unique=True, exact=False)
+    f.search('**/a3*', unique=True)
 
 
 @raises(ValueError)
 def test_search_key_fuzzy_raise():
 
-    assert not f.search('XX', exact=False, raise_absent=True)
+    assert not f.search('**/XX', raise_absent=True)
 
 
 

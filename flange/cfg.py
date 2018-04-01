@@ -71,9 +71,6 @@ def info():
     return __GET_GLOBAL_FLANGE().info()
 
 
-def get(path, exact=True, unique=True, values=False, raise_absent=False):
-    return __GET_GLOBAL_FLANGE().get(path, exact, unique, values, raise_absent=raise_absent)
-
 def register_model(name, model, research=True):
     return __GET_GLOBAL_FLANGE().register_model(name, model, research)
 
@@ -319,7 +316,7 @@ class Cfg(object):
 
 
 
-    def search(self, path, values=None, unique=False, exact=False, raise_absent=False, vfunc=lambda x: x):
+    def search(self, path, values=None, unique=False, raise_absent=False, vfunc=lambda x: x):
         """
         find matches for the given path expression in the data
 
@@ -329,8 +326,7 @@ class Cfg(object):
         path_and_value_list = iterutils.search(
                 self.data,
                 path=path,
-                required_values=values,
-                exact=exact)
+                required_values=values)
 
         # print 'search found ', [x[0] for x in path_and_value_list]
 
@@ -356,25 +352,25 @@ class Cfg(object):
 
 
 
-    def path(self, path=None, values=None, exact=True, raise_absent=False):
-        return self.search(path=path, unique=True, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: x[0])
-    def paths(self, path=None, values=None, exact=True, raise_absent=False):
-        return self.search(path=path, unique=False, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: x[0])
+    def path(self, path=None, values=None, raise_absent=False):
+        return self.search(path=path, unique=True, values=values, raise_absent=raise_absent, vfunc=lambda x: x[0])
+    def paths(self, path=None, values=None, raise_absent=False):
+        return self.search(path=path, unique=False, values=values, raise_absent=raise_absent, vfunc=lambda x: x[0])
 
 
-    def src(self, path=None, values=None, unique=True, exact=True, raise_absent=False):
-        sources = self.search(path=path, unique=unique, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: self.path_index[x[0]].srcs)
+    def src(self, path=None, values=None, raise_absent=False):
+        sources = self.search(path=path, values=values, unique=True, raise_absent=raise_absent, vfunc=lambda x: self.path_index[x[0]].srcs)
         return next(iter(sources))
-    def srcs(self, path=None, values=None, unique=True, exact=True, raise_absent=False):
-        sources = self.search(path=path, unique=False, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: self.path_index[x[0]].srcs)
+    def srcs(self, path=None, values=None, raise_absent=False):
+        sources = self.search(path=path, values=values, unique=False, raise_absent=raise_absent, vfunc=lambda x: self.path_index[x[0]].srcs)
         return list(set([src for l in sources for s in l])) if sources else sources
 
 
-    def uri(self, path=None, values=None, exact=True, raise_absent=False):
-        sources = self.search(path=path, unique=True, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: self.path_index[x[0]].srcs)
+    def uri(self, path=None, values=None, raise_absent=False):
+        sources = self.search(path=path, unique=True, values=values, raise_absent=raise_absent, vfunc=lambda x: self.path_index[x[0]].srcs)
         return next(iter(sources)).uri
-    def uris(self, path=None, values=None, exact=True, raise_absent=False):
-        sources = self.search(path=path, unique=False, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: self.path_index[x[0]].srcs)
+    def uris(self, path=None, values=None, raise_absent=False):
+        sources = self.search(path=path, unique=False, values=values, raise_absent=raise_absent, vfunc=lambda x: self.path_index[x[0]].srcs)
         return [src.uri for l in sources for src in l] if sources else sources
 
 
@@ -385,21 +381,21 @@ class Cfg(object):
     #     if
     #     x: self.path_index[path_value[0]].instance(model=model) if path_value[0] in self.path_index else None
 
-    def obj(self, path=None, model=None, values=None, exact=True, raise_absent=False):
-        return self.search(path=path, exact=exact, unique=True, raise_absent=raise_absent, values=values,
+    def obj(self, path=None, model=None, values=None, raise_absent=False):
+        return self.search(path=path, unique=True, raise_absent=raise_absent, values=values,
                             vfunc=lambda x: self.path_index[x[0]].instance(model=model) if x[0] in self.path_index else None)
-    def objs(self, path=None, model=None, values=None, exact=True, raise_absent=False):
-        return self.search(path=path, exact=exact, unique=False, raise_absent=raise_absent, values=values,
+    def objs(self, path=None, model=None, values=None, raise_absent=False):
+        return self.search(path=path, unique=False, raise_absent=raise_absent, values=values,
                        vfunc=lambda x: self.path_index[x[0]].instance(model=model) if x[0] in self.path_index else None)
 
 
-    def value(self, path=None, values=None, exact=True, raise_absent=False):
-        return self.search(path=path, unique=True, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: x[1])
-    def values(self, path=None, values=None, exact=True, raise_absent=False):
-        return self.search(path=path, unique=False, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: x[1])
+    def value(self, path=None, values=None, raise_absent=False):
+        return self.search(path=path, unique=True, values=values, raise_absent=raise_absent, vfunc=lambda x: x[1])
+    def values(self, path=None, values=None, raise_absent=False):
+        return self.search(path=path, unique=False, values=values, raise_absent=raise_absent, vfunc=lambda x: x[1])
 
-    def get(self, path=None, values=None, unique=True, exact=True, raise_absent=False):
-        return self.path_index[self.search(path=path, unique=unique, exact=exact, values=values, raise_absent=raise_absent)[0]]
+    def get(self, path=None, values=None, unique=True, raise_absent=False):
+        return self.path_index[self.search(path=path, unique=unique, values=values, raise_absent=raise_absent)[0]]
 
 
 
