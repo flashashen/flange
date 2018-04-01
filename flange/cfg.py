@@ -1,63 +1,31 @@
 
-import anyconfig, os, fnmatch, string, six
-from . import iterutils, url_scheme_python as pyurl
-from .registry import InstanceRegistry, LOG_REGISTRY
-from six import iteritems
+import os, fnmatch, string, six
+from . import iterutils, model as flmd
+from .source import Source
+import anyconfig
 
 
-PARSABLES = {
-    'pickle':['p','pickle'],
-    'xml':['xml'],
-    'yaml':['yml','yaml'],
-    'json':['json'],
-    'ini':['ini'],
-    'properties':['props','properties'],
-    'shellvars':['env']}
 
 DEFAULT_EXCLUDE_PATTERNS = ['*.tar','*.jar','*.zip','*.gz','*.swp','node_modules','target','.idea','*.hide','*save']
 DEFAULT_FILE_PATTERNS = ['*.yml','*cfg','*settings','*config','*properties','*props']
 VALID_KEY_CHARS = [c for c in string.printable if c not in ['_'] ]
-
-DEFAULT_FILTER = lambda p,k,v: isinstance(k, int) or (isinstance(k, six.string_types) and len(k)<50 and all(c in string.printable for c in VALID_KEY_CHARS))
-DEFAULT_INDEXER = None
-
-
-PLUGIN_SCHEMA = {
-    'type': 'object',
-    'properties': {
-        'type': {'constant': 'FLANGE.TYPE.PLUGIN'},
-        'schema': {
-            'oneOf': [
-                {'type':'string', 'pattern': pyurl.URL_PATTERN_STRING},
-                {'type': 'object'}]},
-        'factory': {'type':'string', 'pattern': pyurl.URL_PATTERN_STRING}
-    },
-    'required': ['type','schema','factory']}
-
-
-DEFAULT_PLUGINS = {'logger': LOG_REGISTRY}
-def register_default_plugin(name, schema, factory):
-    DEFAULT_PLUGINS[name] = InstanceRegistry(schema, factory)
-    # print DEFAULT_PLUGINS
-    # If the global instance is already constructed, then explicitly register and research now
-    if __GLOBAL_CFG:
-        register_model(name, schema, factory)
+DEFAULT_KEY_FILTER = lambda p, k, v: k == None or isinstance(k, int) or (isinstance(k, six.string_types) and len(k)<50 and all(c in string.printable for c in VALID_KEY_CHARS))
+DEFAULT_UNFLATTEN_SEPARATOR = '__'
 
 
 
+def from_home_dir(root_path=None, include_os_env=False):
+    return Cfg(base_dir='~', root_path=root_path, include_os_env=include_os_env)
 
-def from_home_dir(root_ns=None, file_ns_from_dirname=False, include_os_env=False):
-    return Cfg(base_dir='~', root_ns=root_ns, file_ns_from_dirname=file_ns_from_dirname, include_os_env=include_os_env)
-
-def from_file(filename, root_ns=None, file_ns_from_dirname=False, include_os_env=False):
+def from_file(filename, root_path=None, include_os_env=False):
     path, basename = os.path.split(os.path.realpath(os.path.expanduser(filename)))
-    return Cfg(root_ns=root_ns, file_ns_from_dirname=file_ns_from_dirname, include_os_env=include_os_env, base_dir=path, file_patterns=[basename])
+    return Cfg(root_path=root_path, include_os_env=include_os_env, base_dir=path, file_patterns=[basename])
 
-def from_dict(d, root_ns=None, include_os_env=False):
-    return Cfg(data=d, root_ns=root_ns, file_patterns=None, include_os_env=include_os_env)
+def from_dict(d, root_path=None, include_os_env=False):
+    return Cfg(data=d, root_path=root_path, file_patterns=None, include_os_env=include_os_env)
 
-def from_os_env(root_ns=None):
-    return Cfg(root_ns=root_ns, include_os_env=True, file_patterns=[])
+def from_os_env(root_path=None):
+    return Cfg(root_path=root_path, include_os_env=True, file_patterns=[])
 
 
 
@@ -73,176 +41,120 @@ def __GET_GLOBAL_FLANGE():
         __GLOBAL_CFG = Cfg()
     return __GLOBAL_CFG
 
-def mget(config_key=None, model=None, vfilter=None, raise_absent=False):
-   return __GET_GLOBAL_FLANGE().mget(config_key=config_key, model=model, vfilter=vfilter, raise_absent=raise_absent)
+def obj(*args, **kwargs):
+    return __GET_GLOBAL_FLANGE().obj(*args, **kwargs)
+def objs(*args, **kwargs):
+    return __GET_GLOBAL_FLANGE().objs(*args, **kwargs)
+def path(*args, **kwargs):
+    return __GET_GLOBAL_FLANGE().path(*args, **kwargs)
+def paths(*args, **kwargs):
+    return __GET_GLOBAL_FLANGE().paths(*args, **kwargs)
+def src(*args, **kwargs):
+    return __GET_GLOBAL_FLANGE().src(*args, **kwargs)
+def srcs(*args, **kwargs):
+    return __GET_GLOBAL_FLANGE().srcs(*args, **kwargs)
+def uri(*args, **kwargs):
+    return __GET_GLOBAL_FLANGE().uri(*args, **kwargs)
+def uris(*args, **kwargs):
+    return __GET_GLOBAL_FLANGE().uris(*args, **kwargs)
+def value(*args, **kwargs):
+    return __GET_GLOBAL_FLANGE().value(*args, **kwargs)
+def values(*args, **kwargs):
+    return __GET_GLOBAL_FLANGE().values(*args, **kwargs)
+def get(*args, **kwargs):
+    return __GET_GLOBAL_FLANGE().get(*args, **kwargs)
+def search(*args, **kwargs):
+    return __GET_GLOBAL_FLANGE().search(*args, **kwargs)
+
 
 def info():
     return __GET_GLOBAL_FLANGE().info()
 
-def search(pattern, exact=True, keys=True, values=False, path=None):
-    return __GET_GLOBAL_FLANGE().search(pattern, exact, keys, values, path)
 
-def get(key, model=None, first=False, raise_absent=False, path=None, vfilter=None):
-    return __GET_GLOBAL_FLANGE().get(key, model, first, raise_absent, path, vfilter)
+def get(path, exact=True, unique=True, values=False, raise_absent=False):
+    return __GET_GLOBAL_FLANGE().get(path, exact, unique, values, raise_absent=raise_absent)
 
-def register_model(name, schema, factory, research=True):
-    return __GET_GLOBAL_FLANGE().register_model(name, schema, factory, research)
+def register_model(name, model, research=True):
+    return __GET_GLOBAL_FLANGE().register_model(name, model, research)
 
 
 
+def register_default_model(name, model):
 
+    flmd.DEFAULT_MODELS[name] = model
 
-def merge(dicts, unflatten_separator=None, strategy=anyconfig.MS_DICTS_AND_LISTS):
-    '''
-    Merge a list of dicts into a composite dict
-
-    :param sources: list of dicts
-    :param unflatten_separator: if provided will expand compound keys into nested dicts
-    :param strategy: merge strategy
-    :return: composite dict, list of any dicts that failed to merge
-    '''
-
-    merged = {}
-    failed = []
-    for d in dicts:
-        try:
-            anyconfig.merge(merged, unflatten(d, unflatten_separator), ac_merge=strategy)
-        except:
-            print
-            failed.append(d)
-
-
-    return merged, failed
+    # If the global instance is already constructed, then explicitly register and research now
+    if __GLOBAL_CFG:
+        register_model(name, model)
 
 
 
-def unflatten(data, separator='.', replace=True):
-    '''
-    Expand all compound keys (at any depth) into nested dicts
-    
-        In [13]: d  = {'test.test2': {'k1.k2': 'val'}}
-        In [14]: flange.expand(d)
-        Out[14]: {'test.test2': {'k1': {'k2': 'val'}}}
-
-    :param data: input dict
-    :param separator: separator in compound keys
-    :param replace: if true, remove the compound key. Otherwise the value will
-    exist under the compound and expanded key
-    :return: copy of input dict with expanded keys
-    '''
-    if not separator:
-        return data
-    return iterutils.remap({'temp':data}, visit=lambda p, k, v: __expand_keys(k, v, separator, replace))['temp']
 
 
+class Flobject(object):
 
-def __expand_keys(k, v, separator, replace):
-    if isinstance(v, dict):
-        newvalue = v.copy()
-        for dkey, dvalue in v.items():
-            if replace:
-                del newvalue[dkey]
-            anyconfig.set_(
-                newvalue,
-                dkey.replace(separator, '.') if dkey else dkey,
-                dvalue)
+    def __init__(self, val=None, mregs=None, srcs=None, path=None, wrap=False):
 
-        return k, newvalue
-    return k, v
-
-
-
-class Source(object):
-
-    def __init__(self, uri, ns=None, contents={}, parser=None, error=None, filter=DEFAULT_FILTER, indexer=DEFAULT_INDEXER):
-        self.uri = uri
-        self.ns = ns
-        self.error = error
-
-        self.filter = filter
-        self.indexer = indexer
-
-        if contents:
-            self.set_contents(contents, parser)
+        if wrap:
+            # basic wrapper. untested. keep this around for experimentation. This could be used to
+            # keep the metadata this class holds in-place in the original data via substitution of the
+            # wrapped object. Then an index of paths wouldn't be necessary.
+            #
+            # copied from:
+            #   https://stackoverflow.com/questions/1443129/completely-wrap-an-object-in-python/1445289#1445289
+            self.__class__ = type(val.__class__.__name__,
+                                  (self.__class__, val.__class__),
+                                  {})
+            self.__dict__ = val.__dict__
 
 
-    def __repr__(self):
-        return self.__str__()
-    def __str__(self):
-        return "<Source uri={} ns={} parser={} len={}>".format(self.uri, self.ns, self.parser, len(self.contents[self.ns]) if self.ns else len(self.contents))
+        self.val = val
+        self.mregs = mregs if mregs else {}
+        self.srcs = srcs if srcs else set()
+        self.path = path
 
 
-    def set_contents(self, contents, parser=None):
-        """
-        Set the dict like contents, applying filter and indexer and
-        adding under the namespace if provided
-        :param contents: contents of resource in dict form
-        :param parser: Currently this is just the anyconfig parser name
-        :return: None
-        """
-        if contents:
-            contents = iterutils.remap(contents, lambda p, k, v: self.__filter_and_index(p, k, v))
-        else:
-            contents = {}
-
-        self.contents = {self.ns: contents} if self.ns else contents
-        self.parser = parser
-
-
-    def __filter_and_index(self, p,k,v):
-
-        # Prepend the namespace to the path to match how
-        # this item will appear in the resulting data
-        np = (self.ns,) + p if self.ns else p
-
-        if not self.filter(np, k, v):
-            return False
-
-        if self.indexer:
-            self.indexer(self, np, k, v)
-
-        return k, v
-
-
-    def parse(self, parser=None):
-
-        self.set_contents(
-            anyconfig.load(self.uri, ac_parser=parser, ac_ordered=True),
-            parser if parser else os.path.splitext(self.uri)[1].strip('.'))
-        # print '\n\n\naccepted:\n', d
 
 
     @staticmethod
-    def from_file(
-            full_file_path,
-            ns,
-            filter=DEFAULT_FILTER,
-            indexer=DEFAULT_INDEXER):
+    def from_path_and_value(pv):
+        return Flobject(path=pv[0], val=pv[1])
 
-        s = Source(full_file_path, ns, filter=filter, indexer=indexer)
+    def __repr__(self):
+        return "<Flobject {}, #srcs={}, #instances={}>".format(self.path, len(self.srcs), len(self.mregs))
 
-        try:
-            s.parse()
 
-        except Exception as e:
-            # if the file had a known extension but didn't parse, raise an exception. The danger is that
-            # it be parsed incorrectly as properties file which seems to match everything
-            ext = os.path.splitext(full_file_path)[1][1:]
-            if [lext for lext in PARSABLES.values() if ext in lext]:
-                s.error = e
-                # print 'exception parsing {}\t{}'.format(ext, e)
-                return s
+    def add_src(self, src):
+        self.srcs.add(src)
 
-            for p in PARSABLES.keys():
-                try:
-                    s.parse(p)
-                    break
-                except Exception as e:
-                    # print 'exception parsing as ', p, ' ', e
-                    pass
+    def register_model(self, model, v):
+        # print 'reg model called on ',  model
+        if model.name not in self.mregs:
+            self.mregs[model.name] = model.registration(v)
 
-        # print 'returning s\n', s
-        return s
+
+    def val_equals(self, val):
+        # print 'assert_val_equals: ', self.val, val
+        return self.val == val
+
+
+    def instance(self, model=None):
+
+        if model:
+            if model in self.mregs:
+                # try:
+                return self.mregs[model].instance()
+                # except Exception as e:
+                #     print e
+
+
+        elif len(self.mregs) == 1:
+            return list(self.mregs.values())[0].instance()
+
+        if len(self.mregs) > 1:
+            raise ValueError('multiple registrations. Must specify model name from :{}'.format(self.mregs))
+
+
 
 
 
@@ -251,379 +163,395 @@ class Cfg(object):
     def __init__(self, 
                 data=None,
                 include_os_env=True,
-                research_models=True,
-                root_ns='',
+                root_path=None,
                 base_dir='.',
                 file_patterns=DEFAULT_FILE_PATTERNS,
                 file_exclude_patterns=DEFAULT_EXCLUDE_PATTERNS,
                 file_search_depth=0,
-                file_ns_from_dirname=False,
-                unflatten_separator='__'):
+                unflatten_separator=DEFAULT_UNFLATTEN_SEPARATOR,
+                key_filter=DEFAULT_KEY_FILTER,
+                src_post_proc=None,
+                gather=True,
+                merge=True,
+                research=True,):
         """
 
-        :param data: initial data. This is merged as is without regard to root_ns
+        :param data: initial data. This is merged as is without regard to root_path
         :param include_os_env:
         :param research_models:
-        :param root_ns: the namespace/key under which to add all loaded config/data. If model instances are defined at top level this will be needed
+        :param root_path: the namespace/key under which to add all loaded config/data. If model instances are defined at top level this will be needed
         :param base_dir: directory or list of directories to search for config/data. ** order matters! later entries override earlier.
         :param file_patterns:
         :param file_exclude_patterns:
         :param file_search_depth:
-        :param file_ns_from_dirname:
         :param unflatten_separator:
         """
 
+        # save params
+        self.unflatten_separator = unflatten_separator
+        self.file_patterns = [file_patterns] if isinstance(file_patterns, six.string_types) else file_patterns
+        self.file_exclude_patterns = file_exclude_patterns
+        self.file_search_depth = file_search_depth
+        self.include_os_env = include_os_env
+        self.root_path = root_path
+        self.init_data = data
+        self.gather = gather
+        self.merge = merge
+        self.research = research
 
-        self.unflatten_separator=unflatten_separator
-        self.base_dir=base_dir
-        self.file_patterns=file_patterns
-        self.file_exclude_patterns=file_exclude_patterns
-        self.file_search_depth=file_search_depth
-        self.file_ns_from_dirname=file_ns_from_dirname
-        self.include_os_env=include_os_env
-        self.root_ns=root_ns
-        self.init_data = {}
+        self.key_filter = key_filter
+        self.src_post_proc = src_post_proc
+
+        self.base_dir = base_dir
+        if isinstance(self.base_dir, six.string_types):
+            self.base_dir = [self.base_dir]
+
+        # init data
+        self.data = {}
         self.sources = []
         self.path_index = {}
+        self.models = flmd.DEFAULT_MODELS.copy()
 
-        self.add_file_set(
-            root_ns=root_ns,
-            base_dir=base_dir,
-            file_patterns=file_patterns,
-            file_exclude_patterns=file_exclude_patterns,
-            file_search_depth=file_search_depth,
-            file_ns_from_dirname=file_ns_from_dirname,
-            unflatten_separator=unflatten_separator
-        )
-
-        if self.include_os_env:
-            d = os.environ.copy()
-            # dicts.append(d)
-            self.sources.append(Source('os_env', 'os', d, filter=DEFAULT_FILTER,
-                indexer=lambda src, p, k, v: Cfg.__index_path(self.path_index, src, p, k, v)))
-
-        if data:
-            self.init_data = data
-            # dicts.append(data)
-            self.sources.append(Source('init_data', '', data, filter=DEFAULT_FILTER,
-                indexer=lambda src, p, k, v: Cfg.__index_path(self.path_index, src, p, k, v)))
+        # function to give to Source objects so register themselves with the path_index
+        # self.source_indexer = lambda src, p, k, v: self.__visit_index_path(self.path_index, src, p, k, v)
 
 
-        self.merge_sources()
+    # conditionally do initial gather, merge and research
+        self.refresh(self.gather, self.merge, self.research)
 
-        if research_models:
+
+
+    #
+    #
+    #   Flange Cfg() init methods
+    #
+    #
+
+    def refresh(self, gather=False, merge=True, research=True):
+
+        if gather:
+            self.gather_sources()
+        if merge:
+            self.merge_sources()
+        if research:
             self.research_models()
 
-        else:
-            self.models = InstanceRegistry(PLUGIN_SCHEMA, Cfg.__create_registry_from_config)
+
+    def gather_sources(self):
+
+        if self.sources:
+            del self.sources
+        if self.path_index:
+            del self.path_index
+        self.sources = []
+        self.path_index = {}
+        self.visited_uris = set()
 
 
-    @staticmethod
-    def __index_path(index, src, p, k, v):
-        cp = p + (k,)
-        if cp in index:
-            index[cp].add(src)
-        else:
-            index[cp] = set([src])
+        if self.file_patterns:
+            for dir in self.base_dir:
+                self.sources.extend(self.__get_file_sources(dir))
+
+        if self.include_os_env:
+            # Dont use root path
+            self.sources.append(Source('os_env', '', os.environ.copy()))
+
+        if self.init_data:
+            # Dont use root path
+            self.sources.append(Source('init_data', '', self.init_data))
+
+
 
 
     def merge_sources(self):
-        self.data, self.failed = merge(
-            [s.contents for s in self.sources],
-            self.unflatten_separator)
+
+        # process sources with called provided function. This gives the caller a chance to
+        # shape things up or set the src path prior to the filter, index and merge
+        dlist = []
+        for s in self.sources:
+            if self.src_post_proc:
+                self.src_post_proc(s)
+
+            d = {s.root_path: s.contents} if s.root_path else s.contents
+            # print d.keys()
+            e = iterutils.unflatten(d, self.unflatten_separator)
+            # print 'after unflatten', e
+            dlist.append(iterutils.remap(e, reraise_visit=True, enter=lambda p, k, v: self.__filter_and_index(s, p, k, v)))
+            # e =  {'test': {'exclude': [['192.168.0.0/16'], ['172.16.0.0/12', '10.0.0.0/8'], '10.1.3.0/24']}}
+            # dlist.append(iterutils.remap(e, enter=lambda p, k, v: self.__filter_and_index(s, p, k, v)))
 
 
-    def add_file_set(
-            self,
-            data=None,
-             root_ns='',
-             base_dir='~',
-             file_patterns=DEFAULT_FILE_PATTERNS,
-             file_exclude_patterns=DEFAULT_EXCLUDE_PATTERNS,
-             file_search_depth=1,
-             file_ns_from_dirname=True,
-             unflatten_separator='__'):
-
-        if file_patterns:
-            if isinstance(base_dir, six.string_types):
-                base_dir = [base_dir]
-
-            for dir in base_dir:
-               self.sources.extend(Cfg.__get_file_sources(
-                    base_dir=os.path.expanduser(dir),
-                    include=file_patterns,
-                    exclude=file_exclude_patterns,
-                    search_depth=file_search_depth,
-                    ns=root_ns,
-                    ns_from_dirname=file_ns_from_dirname,
-                    unflatten_separator=unflatten_separator,
-                    filter=DEFAULT_FILTER,
-                    indexer=lambda src, p, k, v: Cfg.__index_path(self.path_index, src, p, k, v)))
+        # then merge, putting the content under the root path for each source
+        self.data = {}
+        failed = []
+        for d in dlist:
+            try:
+                # print 'merging ', d
+                anyconfig.merge(self.data, d)
+            except:
+                failed.append(d)
 
 
-            # for f in matching_files:
-            #     s = Flange.__get_file_source(f, ns_from_dirname=file_ns_from_dirname)
-            #     self.sources.append(s)
-
-            self.merge_sources()
-
-
-                # dicts = []
-        # for s in new_sources:
-        #     self.sources.append(s)
-        #     d = {s['ns']: s['dict']} if s['ns'] else s['dict']
-        #     if root_ns:
-        #         d = {root_ns: d}
-        #     dicts.append(d)
-        #
-        # new_merged, new_failed = merge(dicts, unflatten_separator)
-        # # print 'final merge of {} and {} '.format(type(new_merged), type(self.data))
-        # self.data, ignore = merge(dicts=[self.data, new_merged], unflatten_separator=None)
-        # # print 'self.data now {} '.format(type(self.data))
-        # self.failed.extend(new_failed)
-
-
-
-    def register_model(self, name, schema, factory, research=True):
-
-        if not self.models:
-            self.models = InstanceRegistry(PLUGIN_SCHEMA, Cfg.__create_registry_from_config)
-
-        self.models.registerInstance(name, InstanceRegistry(schema, factory))
-
-        if research:
-            self.models.get(name).research(self.data)
 
 
     def research_models(self):
 
-        # Keep a special instance registry that registers models. Use it to discover configuration
-        # that defines other type of models with a schema and a factory.
-        self.models = InstanceRegistry(PLUGIN_SCHEMA, Cfg.__create_registry_from_config)
+        plugins = iterutils.research(
+            self.data,
+            query=lambda p, k, v: flmd.PLUGIN_MODEL.validator(v))
 
-        for k,v in DEFAULT_PLUGINS.items():
-            self.models.registerInstance(k, v)
+        for p in plugins:
+            self.register_model(p[1]['name'], flmd.PLUGIN_MODEL.factory(p[1]), False)
 
-        self.models.research(self.data)
+        iterutils.research(
+            self.data,
+            query=lambda p, k, v: self.__visit_index_model_instance(self.models.values(), p, k, v))
 
-        for modelname in self.models.keys():
-            model = self.models.get(modelname)
+
+
+
+
+    #
+    #
+    #   Primary access methods
+    #
+    #
+
+
+
+    def search(self, path, values=None, unique=False, exact=False, raise_absent=False, vfunc=lambda x: x):
+        """
+        find matches for the given path expression in the data
+
+        :param path: path tuple or string
+        :return:
+        """
+        path_and_value_list = iterutils.search(
+                self.data,
+                path=path,
+                required_values=values,
+                exact=exact)
+
+        # print 'search found ', [x[0] for x in path_and_value_list]
+
+        return self.__return_value(path_and_value_list, unique, raise_absent, vfunc)
+
+
+
+    def __return_value(self, l, unique=True, raise_absent=False, vfunc=lambda x: x):
+
+        if l:
+            if vfunc:
+                l = [y for y in [vfunc(x) for x in l] if y]
+
+            if len(l) > 1 and unique:
+                raise ValueError('multiple matches found')
+
+        if not l:
+            if raise_absent:
+                raise ValueError('no match found')
+
+        else:
+            return l[0] if unique else l
+
+
+
+    def path(self, path=None, values=None, exact=True, raise_absent=False):
+        return self.search(path=path, unique=True, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: x[0])
+    def paths(self, path=None, values=None, exact=True, raise_absent=False):
+        return self.search(path=path, unique=False, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: x[0])
+
+
+    def src(self, path=None, values=None, unique=True, exact=True, raise_absent=False):
+        sources = self.search(path=path, unique=unique, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: self.path_index[x[0]].srcs)
+        return next(iter(sources))
+    def srcs(self, path=None, values=None, unique=True, exact=True, raise_absent=False):
+        sources = self.search(path=path, unique=False, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: self.path_index[x[0]].srcs)
+        return list(set([src for l in sources for s in l])) if sources else sources
+
+
+    def uri(self, path=None, values=None, exact=True, raise_absent=False):
+        sources = self.search(path=path, unique=True, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: self.path_index[x[0]].srcs)
+        return next(iter(sources)).uri
+    def uris(self, path=None, values=None, exact=True, raise_absent=False):
+        sources = self.search(path=path, unique=False, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: self.path_index[x[0]].srcs)
+        return [src.uri for l in sources for src in l] if sources else sources
+
+
+    # def query_obj(self, model, path_value):
+    #     if path_value[0] not in self.path_index:
+    #         return None
+    #     obj = self.path_index[path_value[0]].instance(model=model)
+    #     if
+    #     x: self.path_index[path_value[0]].instance(model=model) if path_value[0] in self.path_index else None
+
+    def obj(self, path=None, model=None, values=None, exact=True, raise_absent=False):
+        return self.search(path=path, exact=exact, unique=True, raise_absent=raise_absent, values=values,
+                            vfunc=lambda x: self.path_index[x[0]].instance(model=model) if x[0] in self.path_index else None)
+    def objs(self, path=None, model=None, values=None, exact=True, raise_absent=False):
+        return self.search(path=path, exact=exact, unique=False, raise_absent=raise_absent, values=values,
+                       vfunc=lambda x: self.path_index[x[0]].instance(model=model) if x[0] in self.path_index else None)
+
+
+    def value(self, path=None, values=None, exact=True, raise_absent=False):
+        return self.search(path=path, unique=True, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: x[1])
+    def values(self, path=None, values=None, exact=True, raise_absent=False):
+        return self.search(path=path, unique=False, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: x[1])
+
+    def get(self, path=None, values=None, unique=True, exact=True, raise_absent=False):
+        return self.path_index[self.search(path=path, unique=unique, exact=exact, values=values, raise_absent=raise_absent)[0]]
+
+
+
+
+
+
+    #
+    #
+    #   Init helper methods and remap callbacks
+    #
+    #
+
+
+    def register_model_schema(self, name, schema, factory, research=True):
+        self.register_model(
+            name,
+            flmd.Model(name, flmd.Model.get_schema_validator(schema), factory),
+            research)
+
+    def register_model(self, name, model, research=True):
+        self.models[name] = model
+        if research:
             model.research(self.data)
 
 
+    def __filter_and_index(self, src, p, k, v):
 
-    def info(self):
-
-        print('\nmodels:')
-        for name, val in iteritems(self.models.items()):
-            print("{0:20} instances: {1}".format(name.strip(), ','.join(val.keys()) if name and val else ''))    # name.strip(), '\tinstances:', ','.join(reg['cached_obj'].list()))
-
-        print('\nbase dir: \t{}\nsearch depth: \t{}\nfile include patterns: \t{}\nfile exclude patterns: \t{}'.format(
-            self.base_dir , self.file_search_depth, self.file_patterns, self.file_exclude_patterns))
-
-        print('\nsources:')
-        for src in self.sources:
-            print("{0:20} {1}".format(str(src.parser), str(src.uri)))
+        # now the root_path/ns has already been accounted for in the data.
+        # no prefixing loginc
+        # np = (src.root_path,) + p if src.root_path else p
+        np = p
 
 
+        # print '__filter_and_index', p, k
+        # filter. func may be provided or be class default
+        if self.key_filter and not self.key_filter(np, k, v):
+            # print 'filtered out ', np, k
+            return v, False
 
-    def register(self, name, schema, factory=None, replace=False):
-
-        if not replace and self.models.get(name):
-            raise ValueError('model {} already registered'.format(name))
-
-        if not factory:
-            # if no factory is given, use an identity factory
-            factory = lambda x: x;
-
-        reg = InstanceRegistry(schema, factory);
-        reg.research(self.data)
-        self.models.registerInstance(name, reg)
-        return reg
-
-
-    def source(self, uri, ns=None, model=None, model_key=None, validate=False, overwrite=False):
-
-        new_source = None
-
-        # handle case where uri+ns combo has already been sourced
-        same = [x for x in self.sources if x.uri == uri and x.ns == ns]
-        if same:
-            if not overwrite:
-                raise ValueError('{} - {} is already sourced. To replace, pass overwrite=True'.format(ns, uri))
-            # Remove existing source
-            self.source.remove(same[0])
-
-        # assume src is file for now. In the future determine by uri
-        if True:
-            new_source = self.__get_file_source(uri, ns)
-
-        if model:
-            self.models.get(model, raise_absent=True).registerContents(
-                model_key if model_key else uri,
-                new_source.contents,
-                validate)
-
-        self.sources.append(new_source)
-        return new_source
-
-
-    def list(self, name):
-        registry = self.models.get(name)
-        if registry:
-            return registry.list()
-
-
-    def locate(self, data_path, separator='.'):
-
-        if isinstance(data_path, six.string_types):
-            p = tuple(data_path.split(separator))
+        # index. internal to Cfg class
+        full_path = np + (k,)
+        if full_path in self.path_index:
+            # print 'preexisting index at ', full_path
+            if not self.path_index[full_path].val_equals(v):
+                # print 'updating index at ', full_path
+                # raise ValueError('unexpected value change at path_index[{}]'.format(full_path))
+                self.path_index[full_path].add_src(src)
         else:
-            # assume already in tuple form
-            p = data_path
-
-        return [src.uri for src in self.sources if 'paths' in src and p in src.paths]
+            # print 'adding index at ', full_path
+            self.path_index[full_path] = Flobject(val=v, path=full_path, srcs=set([src]))
 
 
-    def search(self, pattern, exact=False, keys=True, values=False, path=None):
-        return iterutils.search(self.data, pattern, exact, keys, values, path)
-    
-    
-    def get(self, key, model=None, first=False, raise_absent=False, path=None, vfilter=None):
-        if model:
-            if model not in self.models.keys():
-                raise ValueError("no model named '{}'".format(model))
-            return self.models.get(model).get(key)
-        else:
-            return iterutils.get(self.data, key, first, raise_absent, path, vfilter)
+        return iterutils.default_enter(p, k, v)
 
 
-    def sget(self, key):
-
-        # First search for the key to get a list of matching paths
-        d = self.search(key, exact=True)
-        if not d:
-            return
-
-        #
-        if not d[0][0] in self.path_index:
-            return
-        return list(self.path_index[d[0][0]])
-
-    def mget(self, config_key=None, model=None, vfilter=None, raise_absent=False):
+    def __visit_index_model_instance(self, models, p, k, v):
         """
-            Get a matching instance from the model registries
-
-        :param config_key: optional. The config key for the model instance
-        :param model:  optional. Specify the model explicitly
-        :param vfilter: optional. list of terms that must appear in the model instance config
-        :return: a matching instance from the model registry(ies)
+            Called during model research on merged data
         """
-    
-        if model:
-            # print('getting by model name ', model_name
-            if model not in self.models.keys():
-                raise ValueError("no model named '{}'".format(model))
-
-            models = [model]
-        else:
-            models = self.models.keys()
-
-
-
-        # Search all models for the config key
-        l = [i for i in [self.models.get(m).get(config_key, vfilter=vfilter) for m in models] if i]
-
-
-        if len(l) == 0:
-            if raise_absent:
-                raise ValueError("no instance '{}' found".format(config_key))
-            return
-        elif len(l) > 1:
-            raise ValueError('multiple matches found')
-
-        return l[0]
+            # print 'model visit {} on {}'.format(model, v)
+        cp = p + (k,)
+        for model in models:
+            try:
+                if model.validator(v):
+                    if cp in self.path_index:
+                        # if self.path_index[cp].val != v:
+                        #     raise ValueError('unexpected value change at path_index[{}]'.format(cp))
+                        self.path_index[cp].register_model(model, v)
+                    else:
+                        # The object should already be in the index but don't complain for now.
+                        self.path_index[cp] = Flobject(val=v, path=cp, regs=[model])
+            except:
+                pass
 
 
 
-
-    @staticmethod
-    def __get_file_source(
-            filename,
-            ns=None,
-            ns_from_dirname=True,
-            unflatten_separator='__',
-            filter=DEFAULT_FILTER,
-            indexer=DEFAULT_INDEXER):
-
-        full_file_path = os.path.realpath(os.path.expanduser(filename))
-        if not ns:
-            ns = ''
-        if ns_from_dirname:
-            ns = ns + unflatten_separator + os.path.split(os.path.dirname(full_file_path))[-1].strip('.')
-        return Source.from_file(full_file_path, ns, filter=filter, indexer=indexer)
-
-
-    @staticmethod
-    def __get_file_sources(
-            base_dir=os.path.expanduser('~'),
-            include=DEFAULT_FILE_PATTERNS,
-            exclude=DEFAULT_EXCLUDE_PATTERNS,
-            search_depth=1,
-            ns=None,
-            ns_from_dirname=True,
-            unflatten_separator='__',
-            filter=DEFAULT_FILTER,
-            indexer=DEFAULT_INDEXER):
+    def __get_file_sources(self, topdir):
 
         sources = []
-        for root, dirnames, filenames in os.walk(base_dir, topdown=True):
+        topdir = os.path.realpath(os.path.expanduser(topdir))
+        start_depth = topdir.count(os.sep)
+
+        # print '__get_file_sources on ', dir
+        for root, dirnames, filenames in os.walk(os.path.realpath(os.path.expanduser(topdir)), topdown=True):
 
             # print 'walk: {}. {}. {}'.format(root, dirnames, filenames)
 
-            depth = root.count(os.sep) - base_dir.count(os.sep)
-            if depth >= search_depth:
+            depth = root.count(os.sep) - self.base_dir.count(os.sep) - start_depth
+            if depth >= self.file_search_depth:
+                # print 'depth {} exceeded {} on {}'.format(depth, self.file_search_depth, root)
                 del dirnames[:]
 
+
             # remove excluded directories and files
-            for e in exclude:
+            for e in self.file_exclude_patterns:
                 for d in [dirname for dirname in fnmatch.filter(dirnames, e)]:
                     dirnames.remove(d)
                 for f in [filename for filename in fnmatch.filter(filenames, e)]:
+                    # print 'removing ', f
                     filenames.remove(f)
 
             to_include = set()
-            for p in include:
+            for p in self.file_patterns:
                 for filename in fnmatch.filter(filenames, p):
                     to_include.add(os.path.join(root, filename))
 
-            for s in to_include:
-                sources.append(Cfg.__get_file_source(
-                    s,
-                    ns=ns,
-                    ns_from_dirname=ns_from_dirname,
-                    unflatten_separator=unflatten_separator,
-                    filter=filter,
-                    indexer=indexer))
+            for filename in to_include:
+                # print filename
+                # Don't add a uri twice
+                # print '{} is in {}: {}'.format(filename,  self.visited_uris, filename in self.visited_uris)
+                if filename not in self.visited_uris:
+
+                    src = Source.from_file(filename, self.root_path)
+                    if src:
+                        sources.append(src)
+                        self.visited_uris.add(src.uri)
 
         return sources
 
 
 
 
+    #
+    #
+    #
+    #
+    #
 
 
-    @staticmethod
-    def __create_registry_from_config(config):
+    def info(self):
 
-        if isinstance(config['schema'], six.string_types):
-            # parse schema as a url of a method that returns the schema
-            schema = pyurl.get(config['schema'])()
-        else:
-            # otherwise assume this is the schema itself as a dict
-            schema = config['schema']
 
-        return InstanceRegistry(
-            schema,
-            pyurl.get(config['factory']))
+        print('\nconfig:\nbase dir: \t{}\nsearch depth: \t{}\nfile include patterns: \t{}\nfile exclude patterns: \t{}'.format(
+            self.base_dir , self.file_search_depth, self.file_patterns, self.file_exclude_patterns))
+
+        print('\n\nmodels:')
+        for model in self.models:
+            print('\n{}'.format(model))
+            for x in self.path_index.values():
+                if x.mregs.get(model):
+                    print("{0:50} {1}".format('/'.join(x.path), x.mregs.get(model)))
+
+        print('\n\nsources:')
+        for src in self.sources:
+            print("{0:15.10} {1:60.65} {2}".format(str(src.parser), str(src.uri), 'error: ' + str(src.error) if src.error else ''))
+
+
+
+
+
+
+
+
+
 

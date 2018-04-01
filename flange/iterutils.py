@@ -53,6 +53,7 @@ import random
 import socket
 import hashlib
 import itertools
+import six
 
 from collections import Mapping, Sequence, Set, ItemsView
 
@@ -734,15 +735,20 @@ def default_enter(path, key, value):
     try:
         iter(value)
     except TypeError:
+        # print 'no enter'
         return value, False
     if isinstance(value, basestring):
         return value, False
     elif isinstance(value, Mapping):
+        # print 'enter mapping ', type(value)
         return value.__class__(), ItemsView(value)
     elif isinstance(value, Sequence):
+        # print 'enter sequence ', type(value)
         return value.__class__(), enumerate(value)
     elif isinstance(value, Set):
+        # print 'enter set ', type(value)
         return value.__class__(), enumerate(value)
+    # print 'no enter ', type(value)
     return value, False
 
 
@@ -1222,7 +1228,105 @@ $ python -m timeit -s "x = [1]" "try: x.split('.') \nexcept AttributeError: pass
 #
 #
 
-def search(data, pattern, exact=True, keys=True, values=False, path=None):
+
+
+import anyconfig
+
+
+#
+# def merge(dicts, strategy=None):
+#     '''
+#     Merge a list of dicts into a composite dict
+#
+#     :param sources: list of dicts
+#     :param unflatten_separator: if provided will expand compound keys into nested dicts
+#     :param strategy: merge strategy
+#     :return: composite dict, list of any dicts that failed to merge
+#     '''
+#
+#     merged = {}
+#     failed = []
+#     for d in dicts:
+#         try:
+#             anyconfig.merge(merged, ac_merge=strategy)
+#         except:
+#             failed.append(d)
+#
+#
+#     return merged, failed
+
+
+
+def unflatten(data, separator='.', replace=True):
+    '''
+    Expand all compound keys (at any depth) into nested dicts
+
+        In [13]: d  = {'test.test2': {'k1.k2': 'val'}}
+        In [14]: flange.expand(d)
+        Out[14]: {'test.test2': {'k1': {'k2': 'val'}}}
+
+    :param data: input dict
+    :param separator: separator in compound keys
+    :param replace: if true, remove the compound key. Otherwise the value will
+    exist under the compound and expanded key
+    :return: copy of input dict with expanded keys
+    '''
+    if not separator:
+        return data
+    return remap({'temp':data}, visit=lambda p, k, v: __expand_keys(k, v, separator, replace))['temp']
+
+
+
+def __expand_keys(k, v, separator, replace):
+    if isinstance(v, dict):
+        newvalue = dict(v)
+        for dkey, dvalue in v.items():
+            if replace:
+                del newvalue[dkey]
+            anyconfig.set_(
+                newvalue,
+                dkey.replace(separator, '.') if dkey else dkey,
+                dvalue)
+
+        return k, newvalue
+    return k, v
+
+
+def __query(p, k, v, accepted_keys=None, required_values=None, path=None, exact=True):
+
+    # if not k:
+    #     print '__query p k:', p, k
+    # print p, k, accepted_keys, required_values, path, exact
+    def as_values_iterable(v):
+        if isinstance(v, dict):
+            return v.values()
+        elif isinstance(v, six.string_types):
+            return [v]
+        else:
+            # assume is already some iterable type
+            return v
+
+    if path and path != p:
+        return False
+
+    if accepted_keys:
+        if isinstance(accepted_keys, six.string_types):
+            accepted_keys = [accepted_keys]
+        if len([akey for akey in accepted_keys if akey == k or (not exact and akey in k)]) == 0:
+            return False
+
+    if required_values:
+        if isinstance(required_values, six.string_types):
+            required_values = [required_values]
+        # Find all terms in the vfilter that have a match somewhere in the values of the v dict. If the
+        # list is shorter than vfilter then some terms did not match and this v fails the test.
+        if len(required_values) > len([term for term in required_values for nv in as_values_iterable(v) if term == nv or (not exact and term in nv)]):
+            return False
+
+    return True
+
+
+def search(data, path=None, required_values=None, exact=True):
     '''
 
     :param data:
@@ -1233,13 +1337,33 @@ def search(data, pattern, exact=True, keys=True, values=False, path=None):
     :param path: search parameter relating to the nesting of dicts. match against given key hierarchy/sequence/path
     :return: list of matches in the form ((path nesting sequence), value)
     '''
-    if exact:
-        search_func = lambda p,k,v: (keys == True and pattern == k) or (values == True and pattern == v)
-    else:
-        search_func = lambda p,k,v: (keys == True and pattern in k) or (values == True and pattern in v)
 
-    # return [x for x in iterutils.research(data, query=search_func, reraise=False) if path and path in x[0]]
-    return research(data, query=search_func, reraise=False)
+    if isinstance(path, six.string_types):
+        accepted_keys = [path]
+        path = None
+    elif path:
+        accepted_keys = [path[-1]]
+        path = path[:-1]
+    else:
+        accepted_keys = []
+
+
+    results = research(
+        data,
+        query=lambda p, k, v: __query(p, k, v, accepted_keys=accepted_keys, required_values=required_values, path=path, exact=exact),
+        reraise=False)
+
+    return results
+    # test against paths
+    # if len(path) == 1:
+    #
+    # rp = []
+    # for r in results:
+    #     if
+
+
+
+
 
 
 
@@ -1253,25 +1377,16 @@ def get(data, key, first=False, raise_absent=False, path=None, vfilter=None):
     :param path: see search method
    :return: value at given key. None if no match found.
     '''
-    matches = search(data, key, exact=True, values=False, path=path)
-    if matches:
+    matches = search(data, key, exact=True, values=False, path=path, vfilter=vfilter)
 
-        if vfilter:
-            filtered = []
-            for match in matches:
-                add = all([search({'dont_care':match[1]}, term, exact=False, keys=False, values=True, path=None) for term in vfilter])
-                if add:
-                    filtered.append(match)
+    # print filtered
+    if not matches:
+        if raise_absent:
+            raise ValueError('not found'.format(key))
+        return
+    elif len(matches) > 1 and not first:
+        raise ValueError('multiple matches found: ' + str([m[0] for m in matches]))
+    return matches[0][1]
 
-        else:
-            filtered = matches
 
-        # print filtered
-        if not filtered:
-            if raise_absent:
-                raise ValueError('key not found: {}'.format(key))
-            return
-        elif len(filtered) > 1 and not first:
-            raise ValueError('multiple matches found: ' + str([m[0] for m in filtered]))
-        return filtered[0][1]
 

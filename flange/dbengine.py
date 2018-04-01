@@ -1,6 +1,6 @@
 
 
-from . import cfg
+from . import cfg, model
 from sqlalchemy import create_engine
 
 dbengine_schema = {
@@ -29,6 +29,10 @@ def dbengine_create_func(config):
 
 
 def register():
-    cfg.register_default_plugin('dbengine', dbengine_schema, dbengine_create_func)
+    cfg.register_default_model(
+        'dbengine',
+        model.Model('dbengine',
+                    model.Model.get_schema_validator(dbengine_schema),
+                    dbengine_create_func))
 
 register()

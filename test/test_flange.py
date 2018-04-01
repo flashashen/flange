@@ -3,7 +3,7 @@ import logging
 from .context import *
 from nose.tools import *
 
-from flange import dbengine, url_scheme_python as pyurl
+from flange import dbengine, iterutils, url_scheme_python as pyurl
 # from flange import Flange, url_scheme_python as pyurl
 
 # pyurl = url_scheme_python
@@ -84,39 +84,120 @@ f = flange.cfg.Cfg(data=data)
 
 
 def test_search_key_exact():
+    assert f.search('a3b', exact=True, raise_absent=True)
+    assert not f.search('a3', exact=True)
+    assert not f.search('a3b_', exact=True)
 
-    assert f.search('a3b', exact=True)
-    assert f.search('a3b', exact=False)
 
-    assert f.search('3b', exact=False)
-    assert not f.search('3b', exact=True)
+@raises(ValueError)
+def test_search_key_exact_raise():
+    assert not f.search('3b', exact=True, raise_absent=True)
+
+
+def test_search_key_fuzzy():
+    assert f.search('a3b', exact=False, raise_absent=True)
+    assert len(f.search('a3', unique=False, exact=False)) == 2
+    assert not f.search('a3bx', exact=False)
+    assert not f.search('XX', exact=False)
+
+
+@raises(ValueError)
+def test_multiples_raise_when_unique_specified():
+    # even with 'p' given, unique means unique
+    f.search('a3', unique=True, exact=False)
+
+
+@raises(ValueError)
+def test_search_key_fuzzy_raise():
+
+    assert not f.search('XX', exact=False, raise_absent=True)
+
+
 
 
 
 def test_model_research():
-    assert type(f.mget('testlog')) == logging.Logger
+    assert type(f.obj('testlog')) == logging.Logger
 
 
-def test_mget_by_name():
-    assert(f.mget('testlog'))
-    assert(f.mget('testlog2'))
-    assert(f.mget('testlog') != f.mget('testlog2'))
+def test_obj_by_name():
+    assert(f.obj('testlog'))
+    assert(f.obj('testlog2'))
+    assert(f.obj('testlog') != f.obj('testlog2'))
 
 
-def test_mget_by_model():
-    # An instance can be fetched by model name. If there are multiple instances a vfilter can be used
+def test_obj_by_model():
+    # An instance can be fetched by model name. If there are multiple instances a values can be used
     with assert_raises(ValueError):
-        f.mget(model='logger', raise_absent=True)
-    assert(f.mget(model='logger', vfilter='DEBUG'))
+        f.obj(model='logger', raise_absent=True)
+    assert(f.obj(model='logger', values='DEBUG'))
 
 
-def test_mget_vfilter():
-    # vfilter can be used with or without the config key to retrieve an instance
-    assert(f.mget('testlog', vfilter='DEBUG'))
-    assert(f.mget('testlog', vfilter='WARNING') == None)
+def test_obj_values():
+    # values can be used with or without the config key to retrieve an instance
+    assert(f.obj('testlog', values='DEBUG'))
+    assert(f.obj('testlog', values='WARNING') == None)
 
-    assert(f.mget('testlog2', vfilter='WARNING'))
-    assert(f.mget('testlog2', vfilter='DEBUG') == None)
+    assert(f.obj('testlog2', values='WARNING'))
+    assert(f.obj('testlog2', values='DEBUG') == None)
+
+
+
+def test_iter_search():
+
+
+    # r = iterutils.__query(p, v, k, accepted_keys=None, required_values=None, path=None, exact=True)
+
+    # key
+    assert iterutils.__query(('root',), 'testkey', None,
+                             'testkey', None, None, True)
+    assert iterutils.__query(('root',), 'testkey', None,
+                             ['testkey', 'xxx'], None, None, True)
+    assert iterutils.__query(('root',), 'testkey', None,
+                             'test', None, None, False)
+    assert iterutils.__query(('root',), 'testkey', None,
+                             ['test', 'xxx'], None, None, False)
+    assert not iterutils.__query(('root',), 'testkey', None,
+                                 'test', None, None, True)
+    assert not iterutils.__query(('root',), 'testkey', None,
+                                 'testkeyextra', None, None, True)
+    assert not iterutils.__query(('root',), 'testkey', None,
+                                 'testkeyextra', None, None, False)
+
+    # path
+    assert iterutils.__query(('root',), 'testkey', None,
+                             'testkey', None, ('root',), True)
+    assert not iterutils.__query(('root',), 'testkey', None,
+                                 'testkey', None, ('root', 'sub',), True)
+
+    # val
+    assert iterutils.__query(('root',),  'testkey', {'k1':'val1', 'k2':'val2'},
+                             None, 'val1', None, False)
+    assert iterutils.__query(('root',),  'testkey', {'k1':'val1', 'k2':'val2'},
+                             None, 'val2', None, False)
+    assert iterutils.__query(('root',),  'testkey', {'k1':'val1', 'k2':'val2'},
+                             None, 'val1', None, True)
+    assert iterutils.__query(('root',),  'testkey', {'k1':'val1', 'k2':'val2'},
+                             None, 'va', None, False)
+    assert iterutils.__query(('root',),  'testkey', {'k1':'val1', 'k2':'val2'},
+                             None, '2', None, False)
+    assert iterutils.__query(('root',),  'testkey', {'k1':'val1', 'k2':'val2'},
+                             None, ['val1', 'val2'], None, True)
+    assert not iterutils.__query(('root',),  'testkey', {'k1':'val1', 'k2':'val2'},
+                                 None, 'v3', None, False)
+    assert not iterutils.__query(('root',),  'testkey', {'k1':'val1', 'k2':'val2'},
+                                 None, ['v3'], None, False)
+    assert not iterutils.__query(('root',),  'testkey', {'k1':'val1', 'k2':'val2'},
+                                 None, 'val', None, True)
+    assert not iterutils.__query(('root',),  'testkey', {'k1':'val1', 'k2':'val2'},
+                             None, ['val1', 'val2', 'val3'], None, True)
+
+
+
+def test_get():
+
+    po = f.get('testlog')
+    assert po
 
 
 
@@ -168,6 +249,7 @@ def test_plugin_model():
         },
 
         'test_plugin_config_key': {
+            'name': 'test_plugin',
             'type': 'FLANGE.TYPE.PLUGIN',
             'schema': {
                 'type': 'object',
@@ -181,7 +263,8 @@ def test_plugin_model():
     }
 
     f = flange.cfg.Cfg(data=data, file_patterns=None)
-    assert f.mget('test_instance_key').get_value() == 'some value'
+    # print f.obj('test_instance_key')
+    assert f.obj('test_instance_key').get_value() == 'some value'
 
 
 
@@ -212,6 +295,12 @@ PATH_EXAMPLE = os.path.join(os.path.dirname(__file__), 'resources', 'dsh_example
 
 #
 def test_instantiate_from_explicit_file():
-    f = flange.cfg.from_file(PATH_EXAMPLE, root_ns='contexts__default')
+    f = flange.cfg.from_file(PATH_EXAMPLE, root_path='contexts__default')
     assert f.search('vars')
 
+
+def test_delayed_merge():
+    f = flange.cfg.Cfg(base_dir=os.path.dirname(__file__), file_search_depth=1, merge=False)
+    assert not f.search('command_name2')
+    f.refresh(False, True, True)
+    assert f.search('command_name2')
