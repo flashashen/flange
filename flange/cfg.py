@@ -367,7 +367,7 @@ class Cfg(object):
         return next(iter(sources))
     def srcs(self, path=None, values=None, unique=True, exact=True, raise_absent=False):
         sources = self.search(path=path, unique=False, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: self.path_index[x[0]].srcs)
-        return list(set([src for l in sources for s in l])) if sources else sources
+        return list(set([s for l in sources for s in l])) if sources else sources
 
 
     def uri(self, path=None, values=None, exact=True, raise_absent=False):
@@ -378,27 +378,61 @@ class Cfg(object):
         return [src.uri for l in sources for src in l] if sources else sources
 
 
-    # def query_obj(self, model, path_value):
-    #     if path_value[0] not in self.path_index:
-    #         return None
-    #     obj = self.path_index[path_value[0]].instance(model=model)
-    #     if
-    #     x: self.path_index[path_value[0]].instance(model=model) if path_value[0] in self.path_index else None
 
     def obj(self, path=None, model=None, values=None, exact=True, raise_absent=False):
+        """
+       Return single model object instance matching given criteria
+       :param path: keys path
+       :param values: single value or list of values to match. If exact is False then .contains method is used as filter
+       :param exact: if True then filtered by '==' else by contains function
+       :param raise_absent: if True then raise exception if no match is found
+       :return: matching object from cache if already created or new if not
+       """
         return self.search(path=path, exact=exact, unique=True, raise_absent=raise_absent, values=values,
                             vfunc=lambda x: self.path_index[x[0]].instance(model=model) if x[0] in self.path_index else None)
     def objs(self, path=None, model=None, values=None, exact=True, raise_absent=False):
+        """
+       Return list of model object instances matching given criteria
+       :param path: keys path
+       :param values: single value or list of values to match. If exact is False then .contains method is used as filter
+       :param exact: if True then filtered by '==' else by contains function
+       :param raise_absent: if True then raise exception if no match is found
+       :return: list of matching objects
+       """
         return self.search(path=path, exact=exact, unique=False, raise_absent=raise_absent, values=values,
                        vfunc=lambda x: self.path_index[x[0]].instance(model=model) if x[0] in self.path_index else None)
 
 
     def value(self, path=None, values=None, exact=True, raise_absent=False):
+        """
+        Return single data/config value matching given criteria
+        :param path: keys path 
+        :param values: single value or list of values to match. If exact is False then .contains method is used as filter
+        :param exact: if True then filtered by '==' else by contains function
+        :param raise_absent: if True then raise exception if no match is found
+        :return: matching value
+        """
         return self.search(path=path, unique=True, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: x[1])
     def values(self, path=None, values=None, exact=True, raise_absent=False):
+        """
+        Return all data/config values matching given criteria
+        :param path: keys path
+        :param values: single value or list of values to match. If exact is False then .contains method is used as filter
+        :param exact: if True then filtered by '==' else by contains function
+        :param raise_absent: if True then raise exception if no match is found
+        :return: list of matching values
+        """
         return self.search(path=path, unique=False, exact=exact, values=values, raise_absent=raise_absent, vfunc=lambda x: x[1])
 
     def get(self, path=None, values=None, unique=True, exact=True, raise_absent=False):
+        """
+        Return model instance/registration object matching given criteria
+        :param path: keys path
+        :param values: single value or list of values to match. If exact is False then .contains method is used as filter
+        :param exact: if True then filtered by '==' else by contains function
+        :param raise_absent: if True then raise exception if no match is found
+        :return: list of matching values
+        """
         return self.path_index[self.search(path=path, unique=unique, exact=exact, values=values, raise_absent=raise_absent)[0]]
 
 
