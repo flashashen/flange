@@ -2,13 +2,14 @@ from . import url_scheme_python as pyurl
 import jsonschema
 import datetime
 import six
+import copy
 
 
 class ModelRegistration(object):
 
     def __init__(self, model, data):
 
-        self.factory = lambda: model.factory(data)
+        self.factory = lambda: model.factory(copy.deepcopy(data))
         self.cached_object = None
         self.cached_since = None
         self.exception = None
