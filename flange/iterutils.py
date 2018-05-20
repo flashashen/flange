@@ -1279,7 +1279,7 @@ def unflatten(data, separator='.', replace=True):
 
 def __expand_keys(k, v, separator, replace):
     if isinstance(v, dict):
-        newvalue = dict(v)
+        newvalue = v.copy()
         for dkey, dvalue in v.items():
             if replace:
                 del newvalue[dkey]
@@ -1293,6 +1293,18 @@ def __expand_keys(k, v, separator, replace):
 
 
 def __query(p, k, v, accepted_keys=None, required_values=None, path=None, exact=True):
+    """
+    Query function given to visit method
+
+    :param p: visited path in tuple form
+    :param k: visited key
+    :param v: visited value
+    :param accepted_keys: list of keys where one must match k to satisfy query.
+    :param required_values: list of values where one must match v to satisfy query
+    :param path: exact path in tuple form that must match p to satisfy query
+    :param exact: if True then key and value match uses contains function instead of ==
+    :return: True if all criteria are satisfied, otherwise False
+    """
 
     # if not k:
     #     print '__query p k:', p, k
@@ -1334,7 +1346,7 @@ def search(data, path=None, required_values=None, exact=False):
     :param exact: search term must exactly match the key or value
     :param keys: match against keys
     :param values: match against values
-    :param path: search parameter relating to the nesting of dicts. match against given key hierarchy/sequence/path
+    :param path: tuple or dpath expression representing the hierarchy/chain of parent keys
     :return: list of matches in the form ((path nesting sequence), value)
     '''
 
@@ -1342,9 +1354,11 @@ def search(data, path=None, required_values=None, exact=False):
     if not path:
         matches = research(
             data,
-            query=lambda p, k, v: __query(p, k, v, accepted_keys=accepted_keys, required_values=required_values, path=path, exact=exact),
+            query=lambda p, k, v: __query(p, k, v, required_values=required_values, path=path, exact=exact),
             reraise=False)
     else:
+        if isinstance(path, tuple):
+            path = '/'.join(path)
         import dpath
         matches = [(tuple(x[0].split('/')), x[1],) for x in dpath.util.search(data, path, yielded=True) if x[0]]
 

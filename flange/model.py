@@ -1,14 +1,15 @@
-import url_scheme_python as pyurl
+from . import url_scheme_python as pyurl
 import jsonschema
 import datetime
 import six
+import copy
 
 
 class ModelRegistration(object):
 
     def __init__(self, model, data):
 
-        self.factory = lambda: model.factory(data)
+        self.factory = lambda: model.factory(copy.deepcopy(data))
         self.cached_object = None
         self.cached_since = None
         self.exception = None
@@ -16,7 +17,7 @@ class ModelRegistration(object):
     def __repr__(self):
         return '<ModelRegistration {} {} {}>'.format(self.cached_object, self.cached_since, self.exception)
 
-    def instance(self):
+    def instance(self, reraise=False):
 
         if not self.cached_object:
 
@@ -29,6 +30,8 @@ class ModelRegistration(object):
 
             except Exception as e:
                 self.exception = e
+                if reraise:
+                    raise e
 
         return self.cached_object
 

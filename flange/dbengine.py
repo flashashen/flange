@@ -15,17 +15,18 @@ dbengine_schema = {
     "required": ["driver", "name", "user", "pass"]
 }
 
-def dbengine_create_func(config):
-    url_format_string = "{:s}://{:s}:{:s}@{:s}:{:s}/{:s}?"
-    engine = create_engine(url_format_string.format(
-        config['driver'],
-        config['user'],
-        config['pass'],
-        config['host'],
-        config['port'],
-        config['name']), convert_unicode=True)
 
-    return engine
+def dbengine_create_func(config):
+
+    url = "{:s}://{:s}:{:s}@{:s}:{:s}/{:s}?".format(
+        config.pop('driver'),
+        config.pop('user'),
+        config.pop('pass'),
+        config.pop('host'),
+        config.pop('port'),
+        config.pop('name'))
+
+    return create_engine(url, **config)
 
 
 def register():

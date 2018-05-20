@@ -1,9 +1,9 @@
 
-import os, fnmatch, string, six
+import os, fnmatch, string, six, pprint
 from . import iterutils, model as flmd
 from .source import Source
 import anyconfig
-
+from collections import OrderedDict
 
 
 DEFAULT_EXCLUDE_PATTERNS = ['*.tar','*.jar','*.zip','*.gz','*.swp','node_modules','target','.idea','*.hide','*save']
@@ -61,14 +61,16 @@ def value(*args, **kwargs):
     return __GET_GLOBAL_FLANGE().value(*args, **kwargs)
 def values(*args, **kwargs):
     return __GET_GLOBAL_FLANGE().values(*args, **kwargs)
-def get(*args, **kwargs):
-    return __GET_GLOBAL_FLANGE().get(*args, **kwargs)
+def fobj(*args, **kwargs):
+    return __GET_GLOBAL_FLANGE().fobj(*args, **kwargs)
+def fobjs(*args, **kwargs):
+    return __GET_GLOBAL_FLANGE().fobjs(*args, **kwargs)
 def search(*args, **kwargs):
     return __GET_GLOBAL_FLANGE().search(*args, **kwargs)
 
 
-def info():
-    return __GET_GLOBAL_FLANGE().info()
+def info(path=None):
+    return __GET_GLOBAL_FLANGE().info(path=path)
 
 
 def register_model(name, model, research=True):
@@ -135,18 +137,18 @@ class Flobject(object):
         return self.val == val
 
 
-    def instance(self, model=None):
+    def instance(self, model=None, reraise=True):
 
         if model:
             if model in self.mregs:
                 # try:
-                return self.mregs[model].instance()
+                return self.mregs[model].instance(reraise=reraise)
                 # except Exception as e:
                 #     print e
 
 
         elif len(self.mregs) == 1:
-            return list(self.mregs.values())[0].instance()
+            return list(self.mregs.values())[0].instance(reraise=reraise)
 
         if len(self.mregs) > 1:
             raise ValueError('multiple registrations. Must specify model name from :{}'.format(self.mregs))
@@ -215,7 +217,6 @@ class Cfg(object):
 
     # conditionally do initial gather, merge and research
         self.refresh(self.gather, self.merge, self.research)
-
 
 
     #
@@ -318,11 +319,12 @@ class Cfg(object):
 
     def search(self, path, values=None, unique=False, raise_absent=False, vfunc=lambda x: x):
         """
-        find matches for the given path expression in the data
-
-        :param path: path tuple or string
-        :return:
-        """
+       Return single model object instance matching given criteria
+       :param path: tuple or dpath expression representing the hierarchy/chain of parent keys
+       :param values: single value or list of values to match. If exact is False then .contains method is used as filter
+       :param raise_absent: if True then raise exception if no match is found
+       :return: list matching ojects directly from data/config in the form of ((k1, k2, .., kn), value)
+       """
         path_and_value_list = iterutils.search(
                 self.data,
                 path=path,
@@ -363,7 +365,8 @@ class Cfg(object):
         return next(iter(sources))
     def srcs(self, path=None, values=None, raise_absent=False):
         sources = self.search(path=path, values=values, unique=False, raise_absent=raise_absent, vfunc=lambda x: self.path_index[x[0]].srcs)
-        return list(set([src for l in sources for s in l])) if sources else sources
+        return list(set([s for l in sources for s in l])) if sources else sources
+
 
 
     def uri(self, path=None, values=None, raise_absent=False):
@@ -374,31 +377,70 @@ class Cfg(object):
         return [src.uri for l in sources for src in l] if sources else sources
 
 
-    # def query_obj(self, model, path_value):
-    #     if path_value[0] not in self.path_index:
-    #         return None
-    #     obj = self.path_index[path_value[0]].instance(model=model)
-    #     if
-    #     x: self.path_index[path_value[0]].instance(model=model) if path_value[0] in self.path_index else None
 
     def obj(self, path=None, model=None, values=None, raise_absent=False):
+        """
+       Return single model object instance matching given criteria
+       :param path: tuple or dpath expression representing the hierarchy/chain of parent keys
+       :param values: single value or list of values to match. If exact is False then .contains method is used as filter
+       :param raise_absent: if True then raise exception if no match is found
+       :return: matching object from cache if already created or new if not
+       """
         return self.search(path=path, unique=True, raise_absent=raise_absent, values=values,
                             vfunc=lambda x: self.path_index[x[0]].instance(model=model) if x[0] in self.path_index else None)
     def objs(self, path=None, model=None, values=None, raise_absent=False):
+        """
+       Return list of model object instances matching given criteria
+       :param path: tuple or dpath expression representing the hierarchy/chain of parent keys
+       :param values: single value or list of values to match. If exact is False then .contains method is used as filter
+       :param raise_absent: if True then raise exception if no match is found
+       :return: list of matching objects
+       """
         return self.search(path=path, unique=False, raise_absent=raise_absent, values=values,
-                       vfunc=lambda x: self.path_index[x[0]].instance(model=model) if x[0] in self.path_index else None)
+                       vfunc=lambda x: self.path_index[x[0]].instance(model=model, reraise=False) if x[0] in self.path_index else None)
 
 
     def value(self, path=None, values=None, raise_absent=False):
+        """
+        Return single data/config value matching given criteria
+        :param path: tuple or dpath expression representing the hierarchy/chain of parent keys
+        :param values: single value or list of values to match. If exact is False then .contains method is used as filter
+        :param raise_absent: if True then raise exception if no match is found
+        :return: matching value
+        """
         return self.search(path=path, unique=True, values=values, raise_absent=raise_absent, vfunc=lambda x: x[1])
+
     def values(self, path=None, values=None, raise_absent=False):
+        """
+        Return all data/config values matching given criteria
+        :param path: tuple or dpath expression representing the hierarchy/chain of parent keys
+        :param values: single value or list of values to match. If exact is False then .contains method is used as filter
+        :param raise_absent: if True then raise exception if no match is found
+        :return: list of matching values
+        """
         return self.search(path=path, unique=False, values=values, raise_absent=raise_absent, vfunc=lambda x: x[1])
 
-    def get(self, path=None, values=None, unique=True, raise_absent=False):
+
+    def fobj(self, path=None, values=None, unique=True, raise_absent=False):
+        """
+        Return model instance/registration object matching given criteria
+        :param path: tuple or dpath expression representing the hierarchy/chain of parent keys
+        :param values: single value or list of values to match. If exact is False then .contains method is used as filter
+        :param raise_absent: if True then raise exception if no match is found
+        :return: single model instance/registration object
+        """
         return self.path_index[self.search(path=path, unique=unique, values=values, raise_absent=raise_absent)[0]]
 
-
-
+    def fobjs(self, path=None, values=None, raise_absent=False):
+        """
+        Return all model instance/registration objects matching given criteria
+        :param path: tuple or dpath expression representing the hierarchy/chain of parent keys
+        :param values: single value or list of values to match. If exact is False then .contains method is used as filter
+        :param raise_absent: if True then raise exception if no match is found
+        :return: list of model instance/registration objects
+        """
+        return self.search(path=path, unique=False, values=values, raise_absent=raise_absent,
+                           vfunc=lambda x: self.path_index[x[0]] if x[0] in self.path_index else None)
 
 
 
@@ -418,7 +460,9 @@ class Cfg(object):
     def register_model(self, name, model, research=True):
         self.models[name] = model
         if research:
-            model.research(self.data)
+            iterutils.research(
+                self.data,
+                query=lambda p, k, v: self.__visit_index_model_instance([model], p, k, v))
 
 
     def __filter_and_index(self, src, p, k, v):
@@ -525,25 +569,57 @@ class Cfg(object):
     #
 
 
-    def info(self):
+    def info(self, path=None):
 
 
-        print('\nconfig:\nbase dir: \t{}\nsearch depth: \t{}\nfile include patterns: \t{}\nfile exclude patterns: \t{}'.format(
-            self.base_dir , self.file_search_depth, self.file_patterns, self.file_exclude_patterns))
+        def iprint(s, level=0):
+            s = str(s)
+            print(s.rjust(len(s)+3*level))
 
-        print('\n\nmodels:')
-        for model in self.models:
-            print('\n{}'.format(model))
-            for x in self.path_index.values():
-                if x.mregs.get(model):
-                    print("{0:50} {1}".format('/'.join(x.path), x.mregs.get(model)))
-
-        print('\n\nsources:')
-        for src in self.sources:
-            print("{0:15.10} {1:60.65} {2}".format(str(src.parser), str(src.uri), 'error: ' + str(src.error) if src.error else ''))
+        def psrcs(srcs, level=0):
+            # print('\n')
+            iprint('sources:', level)
+            for src in srcs:
+                iprint("{0:15.10} {1:60.65} {2}".format(str(src.parser), str(src.uri), 'error: ' + str(src.error) if src.error else ''), level+1)
 
 
+        def pmodels(flobjs, omit_empty=False, level=0):
+            # print('\n')
+            iprint('models:', level)
+            for model in self.models:
+                mobjs = [x for x in flobjs if x.mregs.get(model)]
+                if not omit_empty or mobjs:
+                    # print('\n')
+                    iprint('{}'.format(model), level+1)
+                    for x in mobjs:
+                        iprint("{0:50} {1}".format('/'.join(x.path), x.mregs.get(model)), level+2)
 
+        def pvalues(values, level=0):
+            # print('\n')
+            iprint('values:', level)
+            vs = [dict(x) if isinstance(x, OrderedDict) else x for x in values]
+            if vs:
+                for v in vs:
+                    iprint(v, level+1)
+
+
+        s = ''
+        if not path:
+            print('\nconfig:\nbase dir: \t{}\nsearch depth: \t{}\nfile include patterns: \t{}\nfile exclude patterns: \t{}'.format(
+                self.base_dir , self.file_search_depth, self.file_patterns, self.file_exclude_patterns))
+            print('\n')
+            pmodels(self.path_index.values())
+            print('\n')
+            psrcs(self.sources)
+        else:
+
+            for k in search(path):
+                print('\n{}:'.format('/'.join(k[0])))
+                pmodels(fobjs(k[0]), omit_empty=True, level=1)
+
+                psrcs(srcs(path), level=1)
+
+                pvalues(values(path), level=1)
 
 
 

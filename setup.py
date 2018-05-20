@@ -8,7 +8,7 @@ readme.close()
 
 setup(
     name='flange',
-    version='0.0.4',
+    version='0.0.7',
     author='flashashen',
     author_email='flashashen@gmail.com',
     description='Autoload configuration from multiple sources. Autotranslate config into usable object',
@@ -28,14 +28,13 @@ setup(
     platforms='osx,linux,mswindows',
     keywords = "configuration yaml object registry spring",
     long_description=README_TEXT,
-    # package_dir = {'': 'flange'},
-    # packages=['util', 'models'],
     packages=find_packages(exclude=['test']),
     py_modules=['flange'],
     install_requires=[
         'anyconfig',
         'PyYAML',
          'six',
-        'jsonschema'
+        'jsonschema',
+        'dpath'
     ],
 )
