@@ -30,36 +30,84 @@ class Source(object):
 
 
 
-    def parse(self, parser=None):
+    def load(self):
+        pass
 
-        self.contents = anyconfig.load(self.uri, ac_parser=parser, ac_ordered=True)
-        self.parser = parser if parser else os.path.splitext(self.uri)[1].strip('.')
+        # try:
+        #     self.parse()
+        #
+        # except Exception as e:
+        #     # if the file had a known extension but didn't parse, raise an exception. The danger is that
+        #     # it be parsed incorrectly as properties file which seems to match everything
+        #     ext = os.path.splitext(self.uri)[1][1:]
+        #     if [lext for lext in PARSABLES.values() if ext in lext]:
+        #         self.error = e
+        #         # print type(e) # 'exception parsing {}\t{}'.format(ext, e)
+        #
+        #     for p in PARSABLES.keys():
+        #         try:
+        #             self.parse(p)
+        #             break
+        #         except Exception as e:
+        #             # print type(e) #'exception parsing as ', p, ' ', e
+        #             pass
+
+
+
+    # def parse(self, parser=None):
+    #
+    #     self.contents = anyconfig.load(self.uri, ac_parser=parser, ac_ordered=True)
+    #     self.parser = parser if parser else os.path.splitext(self.uri)[1].strip('.')
+
 
 
     @staticmethod
     def from_file(full_file_path, root_path):
+        s = SourceFile(full_file_path, root_path)
+        s.load()
+        return s
 
-        s = Source(full_file_path, root_path)
+
+#
+# class SourceDict(Source):
+#
+#     def __init__(self, uri, root_path=None, contents={}, parser=None, error=None):
+#         super(SourceDict, self).__init__(uri, root_path, contents, parser, error)
+
+
+
+class SourceFile(Source):
+
+    # def __init__(self, uri, root_path=None, contents={}, parser=None, error=None):
+    #     super(SourceFile, self).__init__(uri, root_path, contents, parser, error)
+
+
+    def _parse(self, parser=None):
+
+        contents = anyconfig.load(self.uri, ac_parser=parser, ac_ordered=True)
+        parser = parser if parser else os.path.splitext(self.uri)[1].strip('.')
+        return (contents, parser)
+
+
+    def load(self):
 
         try:
-            s.parse()
+            self.contents, self.parser = self._parse()
 
         except Exception as e:
             # if the file had a known extension but didn't parse, raise an exception. The danger is that
             # it be parsed incorrectly as properties file which seems to match everything
-            ext = os.path.splitext(full_file_path)[1][1:]
+            ext = os.path.splitext(self.uri)[1][1:]
             if [lext for lext in PARSABLES.values() if ext in lext]:
-                s.error = e
+                self.error = e
                 # print type(e) # 'exception parsing {}\t{}'.format(ext, e)
-                return s
 
             for p in PARSABLES.keys():
                 try:
-                    s.parse(p)
+                    self.contents, self.parser = self._parse(p)
                     break
                 except Exception as e:
                     # print type(e) #'exception parsing as ', p, ' ', e
                     pass
 
-        # print 'returning s\n', s
-        return s
+

@@ -1,7 +1,7 @@
 
 import os, fnmatch, string, six, pprint
 from . import iterutils, model as flmd
-from .source import Source
+from .source import Source, SourceFile
 import anyconfig
 from collections import OrderedDict
 
@@ -171,6 +171,7 @@ class Cfg(object):
                 key_filter=DEFAULT_KEY_FILTER,
                 src_post_proc=None,
                 gather=True,
+                load=True,
                 merge=True,
                 research=True,):
         """
@@ -194,9 +195,9 @@ class Cfg(object):
         self.include_os_env = include_os_env
         self.root_path = root_path
         self.init_data = data
-        self.gather = gather
-        self.merge = merge
-        self.research = research
+        # self.gather = gather
+        # self.merge = merge
+        # self.research = research
 
         self.key_filter = key_filter
         self.src_post_proc = src_post_proc
@@ -216,7 +217,7 @@ class Cfg(object):
 
 
     # conditionally do initial gather, merge and research
-        self.refresh(self.gather, self.merge, self.research)
+        self.refresh(gather, load, merge, research)
 
 
     #
@@ -225,24 +226,44 @@ class Cfg(object):
     #
     #
 
-    def refresh(self, gather=False, merge=True, research=True):
+    def clear_data(self):
 
+        if self.data:
+            del self.data
+            self.data = {}
+        if self.path_index:
+            del self.path_index
+            self.path_index = {}
+        if self.models:
+            del self.models
+            self.models = flmd.DEFAULT_MODELS.copy()
+
+
+    def refresh(self, gather=False, load=True, merge=True, research=True):
+
+        clear = False
         if gather:
             self.gather_sources()
+            clear = True
+        if load:
+            self.load_sources()
+            clear = True
+
+        if clear:
+            self.clear_data()
+
         if merge:
             self.merge_sources()
         if research:
             self.research_models()
 
 
+
     def gather_sources(self):
 
         if self.sources:
             del self.sources
-        if self.path_index:
-            del self.path_index
-        self.sources = []
-        self.path_index = {}
+
         self.visited_uris = set()
 
 
@@ -259,6 +280,10 @@ class Cfg(object):
             self.sources.append(Source('init_data', '', self.init_data))
 
 
+
+    def load_sources(self):
+        for s in self.sources:
+            s.load()
 
 
     def merge_sources(self):
@@ -552,7 +577,7 @@ class Cfg(object):
                 # print '{} is in {}: {}'.format(filename,  self.visited_uris, filename in self.visited_uris)
                 if filename not in self.visited_uris:
 
-                    src = Source.from_file(filename, self.root_path)
+                    src = SourceFile(filename, self.root_path)
                     if src:
                         sources.append(src)
                         self.visited_uris.add(src.uri)
