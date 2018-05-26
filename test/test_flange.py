@@ -197,7 +197,7 @@ def test_iter_search():
 
 def test_get():
 
-    po = f.get('testlog')
+    po = f.fobj('testlog')
     assert po
 
 
