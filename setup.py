@@ -8,10 +8,10 @@ readme.close()
 
 setup(
     name='flange',
-    version='0.0.7',
+    version='0.0.8',
     author='flashashen',
     author_email='flashashen@gmail.com',
-    description='Autoload configuration from multiple sources. Autotranslate config into usable object',
+    description='Autoload configuration from multiple sources, object registry, dpath access.',
     license = "MIT",
     url="https://github.com/flashashen/flange",
     classifiers= [
