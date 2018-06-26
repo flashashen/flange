@@ -297,7 +297,7 @@ PATH_EXAMPLE = os.path.join(os.path.dirname(__file__), 'resources', 'dsh_example
 #
 def test_instantiate_from_explicit_file():
     f = flange.cfg.from_file(PATH_EXAMPLE, root_path='contexts__default')
-    assert f.search('vars')
+    assert f.search('contexts/default/vars')
 
 
 def test_delayed_merge():

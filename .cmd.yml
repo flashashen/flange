@@ -8,6 +8,12 @@ test:
 install:
   - pip install -e .
 
+build:
+  - rm -rf build
+  - rm -rf dist
+  - python setup.py sdist bdist_wheel
+  - ls -l dist
+
 release:
   - tox -r
   - rm -rf build

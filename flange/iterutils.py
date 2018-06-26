@@ -57,6 +57,9 @@ import six
 
 from collections import Mapping, Sequence, Set, ItemsView
 
+import dpath
+
+
 try:
     from typeutils import make_sentinel
     _UNSET = make_sentinel('_UNSET')
@@ -1359,7 +1362,6 @@ def search(data, path=None, required_values=None, exact=False):
     else:
         if isinstance(path, tuple):
             path = '/'.join(path)
-        import dpath
         matches = [(tuple(x[0].split('/')), x[1],) for x in dpath.util.search(data, path, yielded=True) if x[0]]
 
     if required_values:

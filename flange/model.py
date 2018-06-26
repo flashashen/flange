@@ -7,12 +7,13 @@ import copy
 
 class ModelRegistration(object):
 
-    def __init__(self, model, data):
+    def __init__(self, model, data, fobj=None):
 
         self.factory = lambda: model.factory(copy.deepcopy(data))
         self.cached_object = None
         self.cached_since = None
         self.exception = None
+        self.fobj = fobj
 
     def __repr__(self):
         return '<ModelRegistration {} {} {}>'.format(self.cached_object, self.cached_since, self.exception)
@@ -22,11 +23,12 @@ class ModelRegistration(object):
         if not self.cached_object:
 
             try:
-                obj = self.factory()
                 self.cached_object = self.factory()
+                if self.fobj:
+                    setattr(self.cached_object, '__flange', self.fobj)
                 self.cached_since = datetime.datetime.now()
                 self.exception = None
-                return obj
+                return self.cached_object
 
             except Exception as e:
                 self.exception = e
@@ -38,17 +40,19 @@ class ModelRegistration(object):
 
 class Model(object):
 
-    def __init__(self, name, validator, factory):
+    def __init__(self, name, validator, factory, inject=None):
         self.name = name
         self.factory = factory
         self.validator = validator
+        self.inject = inject
+        self.fobj = None
 
     def __repr__(self):
         return '<Model {}>'.format(self.name)
 
 
     def registration(self, data):
-        return ModelRegistration(self, data)
+        return ModelRegistration(self, data, self.fobj)
 
 
     @staticmethod
@@ -66,9 +70,10 @@ class Model(object):
             schema = config['schema']
 
         return Model(
-            config['name'],
+            config.get('name'),
             lambda v: jsonschema.validate(v, schema) == None,
-            pyurl.get(config['factory']))
+            pyurl.get(config['factory']),
+            config.get('inject'))
 
 
 
@@ -81,7 +86,8 @@ PLUGIN_SCHEMA = {
             'oneOf': [
                 {'type':'string', 'pattern': pyurl.URL_PATTERN_STRING},
                 {'type': 'object'}]},
-        'factory': {'type':'string', 'pattern': pyurl.URL_PATTERN_STRING}
+        'factory': {'type':'string', 'pattern': pyurl.URL_PATTERN_STRING},
+        'inject': {"enum": ['flange']}  # if 'flange' then cause instances to have the '__flange' var set to the flange object
     },
     'required': ['name','type','schema','factory']}
 

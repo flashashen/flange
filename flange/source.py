@@ -26,7 +26,7 @@ class Source(object):
     def __repr__(self):
         return self.__str__()
     def __str__(self):
-        return "<Source uri={} root_path={} parser={} error{}>".format(self.uri, self.root_path, self.parser, self.error)
+        return "<Source uri={} root_path={} parser={} error={}>".format(self.uri, self.root_path, self.parser, self.error)
 
 
 

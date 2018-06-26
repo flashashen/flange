@@ -84,13 +84,13 @@ def register_default_model(name, model):
 
     # If the global instance is already constructed, then explicitly register and research now
     if __GLOBAL_CFG:
-        register_model(name, model)
+        return register_model(name, model)
 
 
 
 
 
-class Flobject(object):
+class PathCacheObject(object):
 
     def __init__(self, val=None, mregs=None, srcs=None, path=None, wrap=False):
 
@@ -117,17 +117,17 @@ class Flobject(object):
 
     @staticmethod
     def from_path_and_value(pv):
-        return Flobject(path=pv[0], val=pv[1])
+        return PathCacheObject(path=pv[0], val=pv[1])
 
     def __repr__(self):
-        return "<Flobject {}, #srcs={}, #instances={}>".format(self.path, len(self.srcs), len(self.mregs))
+        return "<PathCacheObject {}, #srcs={}, #instances={}>".format(self.path, len(self.srcs), len(self.mregs))
 
 
     def add_src(self, src):
         self.srcs.add(src)
 
-    def register_model(self, model, v):
-        # print 'reg model called on ',  model
+    def add_model(self, model, v):
+        # print 'add model called on ',  model
         if model.name not in self.mregs:
             self.mregs[model.name] = model.registration(v)
 
@@ -324,7 +324,13 @@ class Cfg(object):
             query=lambda p, k, v: flmd.PLUGIN_MODEL.validator(v))
 
         for p in plugins:
-            self.register_model(p[1]['name'], flmd.PLUGIN_MODEL.factory(p[1]), False)
+            m = self.register_model(
+                p[1]['name'],
+                flmd.PLUGIN_MODEL.factory(p[1]),
+                False)
+            # Give self to the plugin model instances so, in turn, the models can provide to their instances
+            if m.inject == 'flange':
+                m.fobj = self
 
         iterutils.research(
             self.data,
@@ -476,11 +482,11 @@ class Cfg(object):
     #
 
 
-    def register_model_schema(self, name, schema, factory, research=True):
-        self.register_model(
-            name,
-            flmd.Model(name, flmd.Model.get_schema_validator(schema), factory),
-            research)
+    # def register_model_schema(self, name, schema, factory, research=True):
+    #     self.register_model(
+    #         name,
+    #         flmd.Model(name, flmd.Model.get_schema_validator(schema), factory),
+    #         research)
 
     def register_model(self, name, model, research=True):
         self.models[name] = model
@@ -488,6 +494,7 @@ class Cfg(object):
             iterutils.research(
                 self.data,
                 query=lambda p, k, v: self.__visit_index_model_instance([model], p, k, v))
+        return model
 
 
     def __filter_and_index(self, src, p, k, v):
@@ -514,7 +521,7 @@ class Cfg(object):
                 self.path_index[full_path].add_src(src)
         else:
             # print 'adding index at ', full_path
-            self.path_index[full_path] = Flobject(val=v, path=full_path, srcs=set([src]))
+            self.path_index[full_path] = PathCacheObject(val=v, path=full_path, srcs=set([src]))
 
 
         return iterutils.default_enter(p, k, v)
@@ -532,10 +539,10 @@ class Cfg(object):
                     if cp in self.path_index:
                         # if self.path_index[cp].val != v:
                         #     raise ValueError('unexpected value change at path_index[{}]'.format(cp))
-                        self.path_index[cp].register_model(model, v)
+                        self.path_index[cp].add_model(model, v)
                     else:
                         # The object should already be in the index but don't complain for now.
-                        self.path_index[cp] = Flobject(val=v, path=cp, regs=[model])
+                        self.path_index[cp] = PathCacheObject(val=v, path=cp, regs=[model])
             except:
                 pass
 

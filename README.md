@@ -63,7 +63,8 @@ of config and credentials
 - Merges configuration from various sources using Anyconfig
 - Pluggable, automatic object detection/creation from config data
 - Object registry with lazy init and cache
-- Convenient object access 
+- Convenient object access
+- Uses [dpath](https://github.com/akesterson/dpath-python) for matching keys in the config/data 
 
 This is partially inspired by the Spring framework. On init, the main configuration object 
 will search for a given set of file pattern at a given directory to a given depth for config 
@@ -82,7 +83,7 @@ called a 'model'.
 
 ##### Model - Logger
 
-This shows access to a logger object which is a built-in model of flange. The built-in logger schema looks like this:
+This shows access to a logger object which is a built-in model of flange. The built-in logger json-schema looks like this:
 
 ```
 {
@@ -108,12 +109,12 @@ the config looks like this (can appear anywhere in your config files):
 }
 ```
 
-the object is accessed with the mget(..) method *(model get)*  like this:
+the object is accessed with the obj(..) method given a [dpath](https://github.com/akesterson/dpath-python) expression like this:
 
 ```
 In [1]: from flange import cfg
 
-In [2]: log = cfg.obj('my_logger')
+In [2]: log = cfg.obj('**/my_logger')
 
 In [3]: log.debug('hello')
 2018-03-09 14:08:17,261:DEBUG:myapp hello
@@ -130,14 +131,14 @@ In [4]: cfg.obj(model='logger').debug('hello')
 .. or just by specifying a value in the instance config with 'values' parameter:
 
 ```
-In [5]: cfg.mget(values='myapp').debug('hello')
+In [5]: cfg.obj(values='myapp').debug('hello')
 2018-03-09 14:42:50,785:DEBUG:myapp  hello
 ```
 
 .. or by specifying multiple values in the instance config with 'values' parameter:
 
 ```
-In [6]: cfg.mget(values=['myapp','DEBUG']).debug('hello')
+In [6]: cfg.obj(values=['myapp','DEBUG']).debug('hello')
 2018-03-09 14:51:36,742:DEBUG:myapp  hello
 ```
 
@@ -148,12 +149,41 @@ unique instance with the mget(..) method.
 the raw config can also be accessed with the value(..) method:
 
 ```
-In [7]: cfg.value('my_logger')
+In [7]: cfg.value('**/my_logger')
 Out[7]: 
 {'name', 'dshlog',
  'level', 'DEBUG'),
  'format', '%(asctime)s:%(levelname)s %(message)s'}
 ```
+
+the file that contained the config can be found with the src(..) or uri(...) methods. 
+The first returns a source that contains the contents, uri, and other information. 
+The latter simple returns the uri of the config/data resource'
+```
+In [8]: cfg.src('**/my_logger')
+Out[8]: <Source uri=/Users/myname/some_config.yml root_path=None parser=yml error=None>
+
+In [9]: cfg.uri('**/my_logger')
+Out[9]: '/Users/panelson/.cmd.yml'
+
+```
+
+*Note: All of the access methods have versions with the same parameters that return multiple values.*
+- obj, objs
+- value, values
+- src, srcs
+- uri, uris
+
+There is also a search*(...) method that is similar to the values(...) method 
+except that search(...) returns key,value pairs.
+```
+In [10]: cfg.search('**/my_logger')
+Out[10]: 
+[(('vars', 'my_logger'),
+  OrderedDict([('name', 'myapp'),
+               ('level', 'DEBUG'),
+               ('format',
+                '%(asctime)s:%(levelname)s:%(name)s  %(message)s')]))]```
 
 
 ##### Model - dbengine / sqlalchemy 
