@@ -174,7 +174,7 @@ Out[9]: '/Users/panelson/.cmd.yml'
 - src, srcs
 - uri, uris
 
-There is also a search*(...) method that is similar to the values(...) method 
+There is also a search(...) method that is similar to the values(...) method 
 except that search(...) returns key,value pairs.
 ```
 In [10]: cfg.search('**/my_logger')
@@ -183,13 +183,14 @@ Out[10]:
   OrderedDict([('name', 'myapp'),
                ('level', 'DEBUG'),
                ('format',
-                '%(asctime)s:%(levelname)s:%(name)s  %(message)s')]))]```
+                '%(asctime)s:%(levelname)s:%(name)s  %(message)s')]))]
+```
 
 
 ##### Model - dbengine / sqlalchemy 
 
 This is another example with the default settings. The loaded data is described
-with the info() method. The the dbengine module is imported which automatically registers 
+with the info() method. The dbengine module is imported which automatically registers 
 an sqlalchemy based model and searches for any configuration that is a valid/sufficient for a 
 sqlalchemy engine. Note: sqlalchemy is an example built-in model. Any sort of model can be 
 registered. **Note that after the import of dbengine module, the 'dbengine' model and it's instances
@@ -258,7 +259,7 @@ yml                  /Users/myuser/Downloads/config_example.yml
 yml                  /Users/myuser/workspace/docker-compose-swarm.yml
 
 
-In [6]: cfg.obj('db1')
+In [6]: cfg.obj('**/db1')
 Out[6]: Engine(mssql+pymssql://corpdomain\corpuser:***@dbhost:1111/dbname?charset=utf8)
 ```
 
