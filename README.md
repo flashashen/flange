@@ -174,7 +174,7 @@ Out[9]: '/Users/panelson/.cmd.yml'
 - src, srcs
 - uri, uris
 
-There is also a search*(...) method that is similar to the values(...) method 
+There is also a search(...) method that is similar to the values(...) method 
 except that search(...) returns key,value pairs.
 ```
 In [10]: cfg.search('**/my_logger')
@@ -183,7 +183,8 @@ Out[10]:
   OrderedDict([('name', 'myapp'),
                ('level', 'DEBUG'),
                ('format',
-                '%(asctime)s:%(levelname)s:%(name)s  %(message)s')]))]```
+                '%(asctime)s:%(levelname)s:%(name)s  %(message)s')]))]
+```
 
 
 ##### Model - dbengine / sqlalchemy 
