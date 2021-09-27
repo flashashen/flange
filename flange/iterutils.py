@@ -53,11 +53,10 @@ import random
 import socket
 import hashlib
 import itertools
-import six
 
-from collections import Mapping, Sequence, Set, ItemsView
+from collections.abc import Mapping, Sequence, Set, ItemsView
 
-import dpath
+import dpath.util
 
 
 try:
@@ -1315,7 +1314,7 @@ def __query(p, k, v, accepted_keys=None, required_values=None, path=None, exact=
     def as_values_iterable(v):
         if isinstance(v, dict):
             return v.values()
-        elif isinstance(v, six.string_types):
+        elif isinstance(v, str):
             return [v]
         else:
             # assume is already some iterable type
@@ -1325,13 +1324,13 @@ def __query(p, k, v, accepted_keys=None, required_values=None, path=None, exact=
         return False
 
     if accepted_keys:
-        if isinstance(accepted_keys, six.string_types):
+        if isinstance(accepted_keys, str):
             accepted_keys = [accepted_keys]
         if len([akey for akey in accepted_keys if akey == k or (not exact and akey in k)]) == 0:
             return False
 
     if required_values:
-        if isinstance(required_values, six.string_types):
+        if isinstance(required_values, str):
             required_values = [required_values]
         # Find all terms in the vfilter that have a match somewhere in the values of the v dict. If the
         # list is shorter than vfilter then some terms did not match and this v fails the test.
@@ -1366,14 +1365,14 @@ def search(data, path=None, required_values=None, exact=False):
 
     if required_values:
 
-        if isinstance(required_values, six.string_types):
+        if isinstance(required_values, str):
             required_values = [required_values]
 
         for m in matches:
             v = m[1]
             if isinstance(v, dict):
                 v = v.values()
-            elif isinstance(v, six.string_types):
+            elif isinstance(v, str):
                 v = [v]
             else:
                 # assume is already some iterable type
@@ -1385,36 +1384,6 @@ def search(data, path=None, required_values=None, exact=False):
                 return []
 
     return matches
-
-
-
-#
-# if isinstance(path, six.string_types):
-#         accepted_keys = [path]
-#         path = None
-#     elif path:
-#         accepted_keys = [path[-1]]
-#         path = path[:-1]
-#     else:
-#         accepted_keys = []
-#
-#
-#     results = research(
-#         data,
-#         query=lambda p, k, v: __query(p, k, v, accepted_keys=accepted_keys, required_values=required_values, path=path, exact=exact),
-#         reraise=False)
-#
-#     return results
-
-    # test against paths
-    # if len(path) == 1:
-    #
-    # rp = []
-    # for r in results:
-    #     if
-
-
-
 
 
 

@@ -41,7 +41,7 @@ class Data(object):
         :param path_expression: path tuple or string
         :return:
         """
-        # keys = path_expression if isinstance(path_expression, six.string_types) else path_expression[-1]
+        # keys = path_expression if isinstance(path_expression, str) else path_expression[-1]
 
         path_and_value_list = iterutils.search(
             self.data,
@@ -98,11 +98,11 @@ class Data(object):
         full_path = np + (k,)
         if full_path in self.path_index:
             if not self.path_index[full_path].val_equals(v):
-                print 'updating index at ', full_path
+                # print 'updating index at ', full_path
                 # raise ValueError('unexpected value change at path_index[{}]'.format(full_path))
                 self.path_index[full_path].add_src(src)
         else:
-            print 'adding index at ', full_path
+            # print 'adding index at ', full_path
             self.path_index[full_path] = indexed_obj_factory(p, k, v)
 
         return k, v

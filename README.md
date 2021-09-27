@@ -59,7 +59,8 @@ of config and credentials
  
 ## What it does
 
-- Automatically searches for and loads (configuration) data in various formats using Anyconfig
+- Automatically searches for and loads (configuration) data in various formats using 
+  [Anyconfig](https://github.com/ssato/python-anyconfig)
 - Merges configuration from various sources using Anyconfig
 - Pluggable, automatic object detection/creation from config data
 - Object registry with lazy init and cache
@@ -157,7 +158,7 @@ Out[7]:
 ```
 
 the file that contained the config can be found with the src(..) or uri(...) methods. 
-The first returns a source that contains the contents, uri, and other information. 
+The first returns an object that contains the contents, uri, and other information. 
 The latter simple returns the uri of the config/data resource'
 ```
 In [8]: cfg.src('**/my_logger')
@@ -168,7 +169,8 @@ Out[9]: '/Users/panelson/.cmd.yml'
 
 ```
 
-*Note: All of the access methods have versions with the same parameters that return multiple values.*
+*Note: All of the access methods have versions with identical parameters that return a list of 
+matches instead of a single match.*
 - obj, objs
 - value, values
 - src, srcs
@@ -193,7 +195,7 @@ This is another example with the default settings. The loaded data is described
 with the info() method. The dbengine module is imported which automatically registers 
 an sqlalchemy based model and searches for any configuration that is a valid/sufficient for a 
 sqlalchemy engine. Note: sqlalchemy is an example built-in model. Any sort of model can be 
-registered. **Note that after the import of dbengine module, the 'dbengine' model and it's instances
+registered. **After the import of dbengine module, the 'dbengine' model and it's instances
 appear in the output.**
 
 ```

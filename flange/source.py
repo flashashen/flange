@@ -1,16 +1,18 @@
 import os
 import anyconfig
-from . import iterutils
+
 
 
 PARSABLES = {
     'pickle':['p','pickle'],
+    'toml':['toml'],
     'xml':['xml'],
     'yaml':['yml','yaml'],
     'json':['json'],
     'ini':['ini'],
     'properties':['props','properties'],
     'shellvars':['env']}
+
 
 
 class Source(object):
@@ -25,40 +27,13 @@ class Source(object):
 
     def __repr__(self):
         return self.__str__()
+
     def __str__(self):
         return "<Source uri={} root_path={} parser={} error={}>".format(self.uri, self.root_path, self.parser, self.error)
 
 
-
     def load(self):
         pass
-
-        # try:
-        #     self.parse()
-        #
-        # except Exception as e:
-        #     # if the file had a known extension but didn't parse, raise an exception. The danger is that
-        #     # it be parsed incorrectly as properties file which seems to match everything
-        #     ext = os.path.splitext(self.uri)[1][1:]
-        #     if [lext for lext in PARSABLES.values() if ext in lext]:
-        #         self.error = e
-        #         # print type(e) # 'exception parsing {}\t{}'.format(ext, e)
-        #
-        #     for p in PARSABLES.keys():
-        #         try:
-        #             self.parse(p)
-        #             break
-        #         except Exception as e:
-        #             # print type(e) #'exception parsing as ', p, ' ', e
-        #             pass
-
-
-
-    # def parse(self, parser=None):
-    #
-    #     self.contents = anyconfig.load(self.uri, ac_parser=parser, ac_ordered=True)
-    #     self.parser = parser if parser else os.path.splitext(self.uri)[1].strip('.')
-
 
 
     @staticmethod
@@ -68,18 +43,8 @@ class Source(object):
         return s
 
 
-#
-# class SourceDict(Source):
-#
-#     def __init__(self, uri, root_path=None, contents={}, parser=None, error=None):
-#         super(SourceDict, self).__init__(uri, root_path, contents, parser, error)
-
-
 
 class SourceFile(Source):
-
-    # def __init__(self, uri, root_path=None, contents={}, parser=None, error=None):
-    #     super(SourceFile, self).__init__(uri, root_path, contents, parser, error)
 
 
     def _parse(self, parser=None):

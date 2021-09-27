@@ -1,5 +1,5 @@
 
-import os, fnmatch, string, six, pprint
+import os, fnmatch, string
 from . import iterutils, model as flmd
 from .source import Source, SourceFile
 import anyconfig
@@ -9,7 +9,7 @@ from collections import OrderedDict
 DEFAULT_EXCLUDE_PATTERNS = ['*.tar','*.jar','*.zip','*.gz','*.swp','node_modules','target','.idea','*.hide','*save']
 DEFAULT_FILE_PATTERNS = ['*.yml','*cfg','*settings','*config','*properties','*props']
 VALID_KEY_CHARS = [c for c in string.printable if c not in ['_'] ]
-DEFAULT_KEY_FILTER = lambda p, k, v: k == None or isinstance(k, int) or (isinstance(k, six.string_types) and len(k)<50 and all(c in string.printable for c in VALID_KEY_CHARS))
+DEFAULT_KEY_FILTER = lambda p, k, v: k == None or isinstance(k, int) or (isinstance(k, str) and len(k)<50 and all(c in string.printable for c in VALID_KEY_CHARS))
 DEFAULT_UNFLATTEN_SEPARATOR = '__'
 
 
@@ -68,6 +68,9 @@ def fobjs(*args, **kwargs):
 def search(*args, **kwargs):
     return __GET_GLOBAL_FLANGE().search(*args, **kwargs)
 
+
+def refresh(gather=False, load=True, merge=True, research=True):
+    return __GET_GLOBAL_FLANGE().refresh(gather, load, merge, research)
 
 def info(path=None):
     return __GET_GLOBAL_FLANGE().info(path=path)
@@ -189,7 +192,7 @@ class Cfg(object):
 
         # save params
         self.unflatten_separator = unflatten_separator
-        self.file_patterns = [file_patterns] if isinstance(file_patterns, six.string_types) else file_patterns
+        self.file_patterns = [file_patterns] if isinstance(file_patterns, str) else file_patterns
         self.file_exclude_patterns = file_exclude_patterns
         self.file_search_depth = file_search_depth
         self.include_os_env = include_os_env
@@ -203,7 +206,7 @@ class Cfg(object):
         self.src_post_proc = src_post_proc
 
         self.base_dir = base_dir
-        if isinstance(self.base_dir, six.string_types):
+        if isinstance(self.base_dir, str):
             self.base_dir = [self.base_dir]
 
         # init data

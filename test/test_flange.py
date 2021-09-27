@@ -1,7 +1,7 @@
 
 import logging
 from .context import *
-from nose.tools import *
+import pytest
 
 from flange import dbengine, iterutils, url_scheme_python as pyurl
 # from flange import Flange, url_scheme_python as pyurl
@@ -29,22 +29,22 @@ def test_url_module_function():
 
 
 def test_url_class():
-    attr = pyurl.get('python://{}.TestPlugin'.format(module_name))
+    attr = pyurl.get('python://{}.FlangeTestPlugin'.format(module_name))
     assert attr().get_schema__instance()
 
-    attr = pyurl.get('python://{}.TestPlugin()'.format(module_name))
+    attr = pyurl.get('python://{}.FlangeTestPlugin()'.format(module_name))
     assert attr.get_schema__instance()
 
 
 def test_url_class_functions():
-    attr = pyurl.get('python://{}.TestPlugin().get_schema__instance'.format(module_name))
+    attr = pyurl.get('python://{}.FlangeTestPlugin().get_schema__instance'.format(module_name))
     assert attr()['type'] == 'object'
-    attr = pyurl.get('python://{}.TestPlugin().get_schema__instance()'.format(module_name))
+    attr = pyurl.get('python://{}.FlangeTestPlugin().get_schema__instance()'.format(module_name))
     assert attr['type'] == 'object'
 
-    attr = pyurl.get('python://{}.TestPlugin.get_schema__static'.format(module_name))
+    attr = pyurl.get('python://{}.FlangeTestPlugin.get_schema__static'.format(module_name))
     assert attr()['type'] == 'object'
-    attr = pyurl.get('python://{}.TestPlugin.get_schema__static()'.format(module_name))
+    attr = pyurl.get('python://{}.FlangeTestPlugin.get_schema__static()'.format(module_name))
     assert attr['type'] == 'object'
 
 
@@ -90,7 +90,7 @@ def test_search_key_exact():
     assert not f.search('a/a2/a3b_')
 
 
-@raises(ValueError)
+@pytest.mark.xfail(raises=ValueError)
 def test_search_key_exact_raise():
     f.search('3b', raise_absent=True)
 
@@ -102,13 +102,13 @@ def test_search_key_fuzzy():
     assert not f.search('a/a2/*XX*')
 
 
-@raises(ValueError)
+@pytest.mark.xfail(raises=ValueError)
 def test_multiples_raise_when_unique_specified():
     # even with 'p' given, unique means unique
     f.search('**/a3*', unique=True)
 
 
-@raises(ValueError)
+@pytest.mark.xfail(raises=ValueError)
 def test_search_key_fuzzy_raise():
 
     assert not f.search('**/XX', raise_absent=True)
@@ -129,7 +129,7 @@ def test_obj_by_name():
 
 def test_obj_by_model():
     # An instance can be fetched by model name. If there are multiple instances a values can be used
-    with assert_raises(ValueError):
+    with pytest.raises(ValueError):
         f.obj(model='logger', raise_absent=True)
     assert(f.obj(model='logger', values='DEBUG'))
 
@@ -202,7 +202,7 @@ def test_get():
 
 
 
-class TestPlugin:
+class FlangeTestPlugin:
 
     class Inner:
         def m(self):
@@ -225,18 +225,18 @@ class TestPlugin:
         return {
             'type': 'object',
             'properties':{
-                'only_TestPlugin_would_match_this': {'type': 'string'}
+                'only_FlangeTestPlugin_would_match_this': {'type': 'string'}
             },
-            'required': ['only_TestPlugin_would_match_this']
+            'required': ['only_FlangeTestPlugin_would_match_this']
         }
 
     def get_schema__instance(self):
-        return TestPlugin.get_schema__static()
+        return FlangeTestPlugin.get_schema__static()
 
 
     def get_instance(self, params):
         # return an instance of this object with the value given in params
-        return TestPlugin(params['only_TestPlugin_would_match_this'])
+        return FlangeTestPlugin(params['only_FlangeTestPlugin_would_match_this'])
 
 
 
@@ -246,7 +246,7 @@ def test_plugin_model():
     data = {
 
         'test_instance_key': {
-            'only_TestPlugin_would_match_this': 'some value'
+            'only_FlangeTestPlugin_would_match_this': 'some value'
         },
 
         'test_plugin_config_key': {
@@ -255,11 +255,11 @@ def test_plugin_model():
             'schema': {
                 'type': 'object',
                 'properties':{
-                    'only_TestPlugin_would_match_this': {'type': 'string'}
+                    'only_FlangeTestPlugin_would_match_this': {'type': 'string'}
                 },
-                'required': ['only_TestPlugin_would_match_this']
+                'required': ['only_FlangeTestPlugin_would_match_this']
             },
-            'factory': 'python://{}.TestPlugin().get_instance'.format(module_name)
+            'factory': 'python://{}.FlangeTestPlugin().get_instance'.format(module_name)
         }
     }
 

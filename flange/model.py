@@ -1,7 +1,6 @@
 from . import url_scheme_python as pyurl
 import jsonschema
 import datetime
-import six
 import copy
 
 
@@ -62,7 +61,7 @@ class Model(object):
     @staticmethod
     def from_plugin_config(config):
 
-        if isinstance(config['schema'], six.string_types):
+        if isinstance(config['schema'], str):
             # parse schema as a url of a method that returns the schema
             schema = pyurl.get(config['schema'])()
         else:
