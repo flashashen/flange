@@ -70,7 +70,7 @@ class Model(object):
 
         return Model(
             config.get('name'),
-            lambda v: jsonschema.validate(v, schema) == None,
+            Model.get_schema_validator(schema),
             pyurl.get(config['factory']),
             config.get('inject'))
 

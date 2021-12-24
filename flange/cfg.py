@@ -295,6 +295,10 @@ class Cfg(object):
         # shape things up or set the src path prior to the filter, index and merge
         dlist = []
         for s in self.sources:
+
+            if s.error:
+                continue
+
             if self.src_post_proc:
                 self.src_post_proc(s)
 
@@ -351,7 +355,7 @@ class Cfg(object):
 
 
 
-    def search(self, path, values=None, unique=False, raise_absent=False, vfunc=lambda x: x):
+    def search(self, path=None, values=None, unique=False, raise_absent=False, vfunc=lambda x: x):
         """
        Return single model object instance matching given criteria
        :param path: tuple or dpath expression representing the hierarchy/chain of parent keys
@@ -618,16 +622,15 @@ class Cfg(object):
                 iprint("{0:15.10} {1:60.65} {2}".format(str(src.parser), str(src.uri), 'error: ' + str(src.error) if src.error else ''), level+1)
 
 
-        def pmodels(flobjs, omit_empty=False, level=0):
+        def pmodels(path_objects, omit_empty=False, level=0):
             # print('\n')
             iprint('models:', level)
             for model in self.models:
-                mobjs = [x for x in flobjs if x.mregs.get(model)]
-                if not omit_empty or mobjs:
-                    # print('\n')
+                paths_with_matching_model = [x for x in path_objects if x.mregs.get(model)]
+                if not omit_empty or paths_with_matching_model:
                     iprint('{}'.format(model), level+1)
-                    for x in mobjs:
-                        iprint("{0:50} {1}".format('/'.join(x.path), x.mregs.get(model)), level+2)
+                    for path in paths_with_matching_model:
+                        iprint("{0:50} {1}".format('/'.join(path.path), path.mregs.get(model)), level+2)
 
         def pvalues(values, level=0):
             # print('\n')

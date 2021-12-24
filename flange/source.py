@@ -66,13 +66,14 @@ class SourceFile(Source):
             if [lext for lext in PARSABLES.values() if ext in lext]:
                 self.error = e
                 # print type(e) # 'exception parsing {}\t{}'.format(ext, e)
-
-            for p in PARSABLES.keys():
-                try:
-                    self.contents, self.parser = self._parse(p)
-                    break
-                except Exception as e:
-                    # print type(e) #'exception parsing as ', p, ' ', e
-                    pass
+            else:
+                for p in PARSABLES.keys():
+                    try:
+                        self.contents, self.parser = self._parse(p)
+                        self.error = None
+                        break
+                    except Exception as e:
+                        # print type(e) #'exception parsing as ', p, ' ', e
+                        pass
 
 

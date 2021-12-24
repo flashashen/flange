@@ -1,6 +1,5 @@
 # Flange 
 
-![CircleCI](https://circleci.com/gh/flashashen/flange.svg?style=svg)
 [![PyPI version](https://badge.fury.io/py/flange.svg)](https://badge.fury.io/py/flange)
 ![Python versions](https://img.shields.io/pypi/pyversions/flange.svg)
 ![MIT License](https://img.shields.io/github/license/flashashen/flange.svg)
